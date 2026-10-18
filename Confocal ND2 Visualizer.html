@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confocal ND2 Visualizer V3</title>
+<script>
+  try { if (localStorage.getItem("nd2viz-theme") === "dark") document.documentElement.setAttribute("data-theme","dark"); } catch(e){}
+</script>
+<style>
+  :root{
+    --bg:#fafbfd; --panel:#ffffff; --panel-2:#f4f6fa; --border:#e3e7ee; --border-strong:#cdd4df;
+    --text:#1c2333; --muted:#67718a; --muted-2:#8a93a3; --accent:#2563eb; --accent-soft:#e0ecff;
+    --accent-soft-strong:#c5dcff; --accent-ink:#ffffff; --green:#16a34a; --danger:#dc2626; --warn:#d97706;
+    --shadow:0 1px 3px rgba(20,40,80,.06),0 1px 2px rgba(20,40,80,.04);
+  }
+  [data-theme="dark"]{
+    --bg:#1b1e24; --panel:#23272f; --panel-2:#2b3038; --border:#383d47; --border-strong:#4a5060;
+    --text:#e9ecf2; --muted:#a3acbe; --muted-2:#79839a; --accent:#e6b450; --accent-soft:#39341d;
+    --accent-soft-strong:#574c28; --accent-ink:#1b1e24; --green:#3ecf8e; --danger:#f0616d; --warn:#f5a623;
+    --shadow:0 1px 3px rgba(0,0,0,.45),0 1px 2px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; overflow:hidden;}
+  header{background:var(--panel); border-bottom:1px solid var(--border); padding:0 18px; display:flex; align-items:center; gap:18px; flex:0 0 auto; height:52px;}
+  header h1{font-size:14px; margin:0; font-weight:700; white-space:nowrap;}
+  header h1 .v{color:var(--accent); font-weight:800;}
+  .tabs{display:flex; gap:2px; height:100%;}
+  .tab{background:transparent; border:none; border-bottom:2px solid transparent; color:var(--muted); font-size:13px; font-weight:600; padding:0 16px; cursor:pointer; height:100%; font-family:inherit;}
+  .tab:hover{color:var(--text);}
+  .tab.active{color:var(--accent); border-bottom-color:var(--accent);}
+  .tab[disabled]{opacity:.4; cursor:not-allowed;}
+  .spacer{flex:1;}
+  .meta{color:var(--muted); font-size:12px; white-space:nowrap;}
+  button{background:var(--panel); color:var(--text); border:1px solid var(--border-strong); border-radius:6px; padding:6px 12px; cursor:pointer; font-size:12.5px; font-family:inherit; transition:all .12s;}
+  button:hover{background:var(--panel-2); border-color:var(--accent);}
+  button.primary{background:var(--accent); border-color:var(--accent); color:var(--accent-ink); font-weight:600;}
+  button.primary:hover{filter:brightness(.93); background:var(--accent); border-color:var(--accent);}
+  button.ghost{background:transparent; border-color:transparent; color:var(--muted); padding:3px 8px; font-size:11.5px;}
+  button.ghost:hover{background:var(--panel-2); color:var(--text);}
+  button.danger{color:var(--danger); border-color:transparent; background:transparent;}
+  button.danger:hover{background:rgba(220,38,38,.08); border-color:var(--danger);}
+  input[type=text],input[type=number],select{background:var(--panel); color:var(--text); border:1px solid var(--border-strong); border-radius:6px; padding:5px 8px; font-size:12.5px; width:100%; font-family:inherit;}
+  input:focus,select:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+  input[type=checkbox]{accent-color:var(--accent);}
+  input[type=range]{accent-color:var(--accent); width:100%;}
+  .view{flex:1; min-height:0; overflow:hidden;}
+  .view[hidden]{display:none !important;}
+
+  /* ---------- Library ---------- */
+  #libView{overflow:auto; padding:24px 30px 70px;}
+  .lib-head{display:flex; align-items:center; gap:12px; margin-bottom:8px;}
+  .lib-head h2{margin:0; font-size:18px;}
+  .lib-sub{color:var(--muted); font-size:13px; margin:0 0 20px; line-height:1.5; max-width:760px;}
+  .cat{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:14px; box-shadow:var(--shadow);}
+  .cat-head{display:flex; align-items:center; gap:10px;}
+  .cat-head .caret{cursor:pointer; color:var(--muted-2); font-size:11px; width:12px;}
+  .cat-head .cname{font-size:15px; font-weight:700; border:1px solid transparent; border-radius:6px; padding:3px 6px; background:transparent; color:var(--text); min-width:170px;}
+  .cat-head .cname:focus{border-color:var(--accent); background:var(--panel);}
+  .cat-head .ccount{color:var(--muted-2); font-size:12px;}
+  .exp-list{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
+  .exp{border:1px solid var(--border); border-radius:9px; background:var(--panel-2); padding:8px 10px;}
+  .exp-row{display:flex; align-items:center; gap:9px;}
+  .exp-row .caret{cursor:pointer; color:var(--muted-2); font-size:11px; width:12px;}
+  .exp-row .ename{font-weight:600; font-size:13px; border:1px solid transparent; border-radius:6px; padding:3px 6px; background:transparent; color:var(--text); min-width:220px;}
+  .exp-row .ename:focus{border-color:var(--accent); background:var(--panel);}
+  .exp-row .epath{color:var(--muted-2); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;}
+  .row-actions{display:flex; gap:4px; margin-left:auto;}
+  .sub-list{margin:8px 0 4px 22px; display:flex; flex-direction:column; gap:6px;}
+  .sub{display:flex; align-items:center; gap:9px; padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:var(--panel);}
+  .sub .sname{font-weight:600; font-size:12.5px; min-width:160px;}
+  .sub .chips{display:flex; gap:4px; flex-wrap:wrap;}
+  .sub .chip{font-size:10.5px; padding:1px 8px; border-radius:999px; color:#fff; font-weight:600;}
+  .sub .scount{color:var(--muted-2); font-size:11px;}
+  .sub .projsel{width:auto; min-width:140px; font-size:11.5px; padding:3px 6px; margin-left:auto;}
+  .newsub{margin:8px 0 2px 22px; border:1px dashed var(--border-strong); border-radius:8px; padding:10px 12px; background:var(--panel);}
+  .newsub h4{margin:0 0 8px; font-size:12px; color:var(--muted);}
+  .newsub .grid{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:8px;}
+  .newsub .gband label{display:block; font-size:10.5px; color:var(--muted-2); margin-bottom:3px; font-weight:600;}
+  .newsub .preview{font-size:11.5px; color:var(--green); margin-bottom:8px; font-family:monospace; min-height:16px;}
+  .empty-hint{color:var(--muted); font-size:13px; padding:8px 4px;}
+
+  /* ---------- Organize ---------- */
+  #metaView{display:grid; grid-template-columns:var(--meta-left,250px) 6px minmax(220px,1fr) 6px var(--meta-right,330px); height:100%;}
+  #metaView.no-exp{grid-template-columns:1fr;}
+  #metaView.no-exp .col-left,#metaView.no-exp .col-right,#metaView.no-exp .col-resizer{display:none;}
+  .panel-col{overflow:auto; min-height:0;}
+  .col-left{border-right:1px solid var(--border); background:var(--panel);}
+  .col-mid{background:var(--bg);}
+  .col-right{border-left:1px solid var(--border); background:var(--panel);}
+  .col-resizer{background:var(--border); cursor:col-resize;}
+  .col-resizer:hover,.col-resizer.dragging{background:var(--accent);}
+  body.col-resizing{cursor:col-resize !important; user-select:none !important;}
+  .col-title{font-size:10.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted-2); font-weight:700; padding:12px 14px 6px;}
+  .meta-switch{display:flex; flex-direction:column; gap:6px; padding:8px 8px 10px; margin-bottom:6px; border-bottom:1px solid var(--border);}
+  .tree{font-size:12.5px; padding:0 6px 20px;}
+  .tree .folder{padding:5px 8px; font-size:10.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted-2); font-weight:700; cursor:pointer; display:flex; gap:4px; align-items:center;}
+  .tree .file{padding:3px 8px 3px 22px; cursor:pointer; border-radius:6px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tree .file:hover{background:var(--panel-2); color:var(--text);}
+  .tree .file.sel{background:var(--accent-soft); color:var(--accent);}
+  .meta-toolbar{display:flex; align-items:center; gap:8px; padding:10px 14px; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--bg); z-index:5; flex-wrap:wrap;}
+  .subhdr{padding:10px 14px 4px; font-size:12px; font-weight:700; color:var(--text); position:sticky; top:0;}
+  .subhdr .ch{font-weight:500; color:var(--muted); font-size:11px;}
+  table.meta-table{border-collapse:separate; border-spacing:0; font-size:12px; width:100%;}
+  table.meta-table th{position:sticky; top:0; background:var(--panel-2); border-bottom:1px solid var(--border-strong); padding:7px 8px; text-align:left; font-weight:600; color:var(--muted); white-space:nowrap; z-index:3;}
+  table.meta-table td{padding:4px 6px; border-bottom:1px solid var(--border); vertical-align:middle;}
+  table.meta-table tr.sel td{background:var(--accent-soft);}
+  table.meta-table input{padding:4px 6px; font-size:12px; min-width:80px;}
+  table.meta-table td.orig{max-width:var(--orig-w,210px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); cursor:pointer;}
+  table.meta-table th.orig-col{position:relative; padding-right:14px;}
+  .th-resizer{position:absolute; top:0; right:0; width:7px; height:100%; cursor:col-resize;}
+  table.meta-table td.auto{color:var(--muted); font-size:11.5px; white-space:nowrap;}
+  table.meta-table td.newname{font-size:11px; color:var(--green); max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  table.meta-table td.series{text-align:center; color:var(--muted);}
+  .tag{display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:3px;}
+  .tag.z{background:rgba(37,99,235,.12); color:var(--accent);}
+  .tag.f{background:rgba(22,163,74,.12); color:var(--green);}
+  .tag.d{background:rgba(217,119,6,.14); color:var(--warn);}
+  .tag.s{background:var(--panel-2); color:var(--muted);}
+  .gutter{width:46px; padding:2px 4px; position:relative;}
+  .row-tools{display:inline-flex; gap:1px; opacity:0;}
+  table.meta-table tr:hover .row-tools,table.meta-table tr.sel .row-tools{opacity:1;}
+  .row-tools button{padding:1px 5px; font-size:12px;}
+  .fill-handle{position:absolute; right:3px; bottom:2px; width:10px; height:10px; background:var(--accent); border:1.5px solid var(--panel); border-radius:2px; cursor:crosshair; opacity:0;}
+  table.meta-table tr:hover .fill-handle{opacity:1;}
+  table.meta-table tr.fill-target td{background:var(--accent-soft-strong)!important;}
+  table.meta-table td.cell{position:relative;}
+  .cell-fill{position:absolute; right:1px; bottom:1px; width:8px; height:8px; background:var(--accent); border:1px solid var(--panel); border-radius:1px; cursor:crosshair; opacity:0; box-shadow:0 0 0 1px var(--accent); z-index:2;}
+  table.meta-table td.cell:hover .cell-fill{opacity:1;}
+  table.meta-table td.fill-target-cell{background:var(--accent-soft-strong)!important;}
+  .preview-wrap{padding:14px;}
+  .preview-canvas{width:100%; border-radius:8px; background:#000; display:block;}
+  .preview-meta{font-size:12px; color:var(--muted); margin-top:10px; line-height:1.6; word-break:break-word;}
+  .preview-meta b{color:var(--text);}
+  .chan-legend{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .chan-legend .ch{display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); border:1px solid var(--border); border-radius:6px; padding:2px 7px;}
+  .chan-legend .dot{width:9px; height:9px; border-radius:50%;}
+  .ph{display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted-2); font-size:12px; height:100%; padding:30px;}
+
+  /* ---------- Visualizer ---------- */
+  #vizView{display:grid; grid-template-columns:var(--viz-left,310px) 6px 1fr; height:100%;}
+  #vizView aside{background:var(--panel); border-right:1px solid var(--border); overflow-y:auto;}
+  #vizResize{background:var(--border); cursor:col-resize;}
+  #vizResize:hover,#vizResize.dragging{background:var(--accent);}
+  .file-list label .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .section{padding:13px 16px; border-bottom:1px solid var(--border);}
+  .section .title{font-size:10.5px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted-2); font-weight:700; margin-bottom:10px;}
+  .sec-toggle{display:flex; align-items:center; gap:5px; cursor:pointer; user-select:none;}
+  .sec-toggle .title{margin-bottom:0;}
+  .sec-caret{font-size:9px; color:var(--muted-2); width:9px;}
+  .field{display:flex; flex-direction:column; gap:4px; margin-bottom:10px;}
+  .field:last-child{margin-bottom:0;}
+  .field>label{font-size:12px; color:var(--muted); font-weight:500;}
+  .file-list{display:flex; flex-direction:column; gap:1px; max-height:230px; overflow:auto;}
+  .file-list label{display:flex; align-items:center; gap:7px; padding:4px 7px; border-radius:6px; cursor:pointer; font-size:11.5px; border:1px solid transparent;}
+  .file-list label:hover{background:var(--panel-2);}
+  .file-list label.on{background:var(--accent-soft); border-color:var(--accent-soft-strong);}
+  .file-list .nm{overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .selbar{display:flex; gap:6px; margin-bottom:6px;}
+  main#vizMain{overflow:auto; padding:14px 18px 60px; position:relative;}
+  .toolbar{display:flex; gap:12px; align-items:center; color:var(--muted); font-size:13px; margin-bottom:12px; flex-wrap:wrap;}
+  .cmp-table{border-collapse:separate; border-spacing:0;}
+  .cmp-table th{font-size:14px; font-weight:700; color:var(--text); padding:8px 10px; text-align:center; position:sticky; top:0; background:var(--bg); z-index:2;}
+  .cmp-table th .dot{display:inline-block; width:12px; height:12px; border-radius:50%; margin-right:6px; vertical-align:middle;}
+  .cmp-table td{padding:6px; vertical-align:top;}
+  .cmp-table td.rowlabel{vertical-align:middle; padding-right:14px; width:210px; min-width:190px;}
+  .cmp-table td.rowlabel .rl-title{font-size:15px; color:var(--text); font-weight:700;}
+  .cmp-table td.rowlabel .rl-file{color:var(--muted); font-weight:400; font-size:12px; margin-top:3px; overflow-wrap:break-word;}
+  .cmp-table td.rowlabel button{white-space:nowrap;}
+  .cmp-table td.rowlabel .rl-meta{color:var(--muted-2); font-size:11px; margin-top:3px;}
+  .cell-img{position:relative; background:#000; border-radius:6px; overflow:hidden; box-shadow:var(--shadow);}
+  .cell-img canvas{display:block; width:100%; height:auto; cursor:zoom-in;}
+  .cell-img.hl{outline:3px solid var(--accent); outline-offset:1px;}
+  .cell-img .empty-cell{display:flex; align-items:center; justify-content:center; color:#555; font-size:11px; background:#0c0c0c; height:100%;}
+  .cell-tools{position:absolute; top:5px; right:5px; display:flex; gap:4px; opacity:0; transition:opacity .12s; z-index:4;}
+  .cell-img:hover .cell-tools{opacity:1;}
+  .cell-tools button{background:rgba(0,0,0,.6); color:#fff; border:1px solid rgba(255,255,255,.25); border-radius:5px; padding:2px 7px; font-size:11px; line-height:1.3;}
+  .cell-tools button:hover{background:rgba(0,0,0,.85); border-color:#fff;}
+  .cell-img.adj .cell-adjpill{position:absolute; top:5px; left:5px; background:rgba(77,141,255,.9); color:#fff; font-size:9px; font-weight:700; padding:1px 6px; border-radius:4px; z-index:3;}
+  .scale-bar{position:absolute; bottom:10px; right:10px; pointer-events:none; z-index:2; border-radius:1.5px;}
+  .scale-bar.color-white{background:#fff; box-shadow:0 0 0 1px rgba(0,0,0,.55);}
+  .scale-bar.color-black{background:#000; box-shadow:0 0 0 1px rgba(255,255,255,.7);}
+  .scale-label{position:absolute; right:10px; pointer-events:none; z-index:2; font-weight:700; white-space:nowrap;}
+  .scale-label.color-white{color:#fff; text-shadow:0 0 3px rgba(0,0,0,.9);}
+  .scale-label.color-black{color:#000; text-shadow:0 0 3px rgba(255,255,255,.95);}
+  .empty{color:var(--muted); text-align:center; padding:60px 20px; font-size:14px; border:1px dashed var(--border-strong); border-radius:10px; background:var(--panel);}
+  .hint{font-size:11px; color:var(--muted-2); line-height:1.45; margin:6px 0 0;}
+  .seg{display:inline-flex; border:1px solid var(--border-strong); border-radius:6px; overflow:hidden;}
+  .seg button{border:none; border-radius:0; border-right:1px solid var(--border-strong); padding:5px 9px; font-size:12px;}
+  .seg button:last-child{border-right:none;}
+  .seg button.on{background:var(--accent); color:var(--accent-ink);}
+
+  /* LUT editor popover (NIS-style) */
+  .lut-editor{position:fixed; z-index:1200; width:248px; background:var(--panel); border:1px solid var(--border-strong); border-radius:10px; box-shadow:0 10px 30px rgba(0,0,0,.25); padding:12px; font-size:12px;}
+  .lut-editor[hidden]{display:none;}
+  .le-head{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .le-head .le-sw{width:14px; height:14px; border-radius:4px; border:1px solid rgba(0,0,0,.25);}
+  .le-head .le-title{font-weight:700; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .le-head .le-close{padding:1px 7px;}
+  .le-hist{width:100%; height:80px; background:var(--panel-2); border:1px solid var(--border); border-radius:6px; display:block; cursor:ew-resize; touch-action:none;}
+  .le-row{display:flex; align-items:center; gap:7px; margin-top:7px;}
+  .le-row label{width:46px; color:var(--muted); font-size:11px;}
+  .le-row input[type=number]{width:auto; flex:1;}
+  .le-row .le-gval{width:36px; text-align:right; color:var(--muted);}
+  .le-colors{display:flex; gap:4px; flex-wrap:wrap; margin-top:9px;}
+  .le-colors .c{width:18px; height:18px; border-radius:4px; cursor:pointer; border:2px solid transparent;}
+  .le-colors .c.sel{border-color:var(--text);}
+  .le-actions{display:flex; align-items:center; justify-content:space-between; margin-top:9px;}
+  .le-actions label{display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--muted); cursor:pointer;}
+
+  .lightbox{position:fixed; inset:0; background:rgba(8,11,20,.95); display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; z-index:999; padding:24px;}
+  .lightbox.open{display:flex;}
+  .lightbox canvas{max-width:92vw; max-height:80vh; object-fit:contain; border-radius:4px; background:#000;}
+  .lightbox .cap{color:#e7eaf2; font-size:14px; text-align:center; max-width:90vw; word-break:break-word;}
+  .lightbox .lb-actions{display:flex; gap:10px;}
+  .toast{position:fixed; bottom:20px; right:20px; background:var(--green); color:#fff; padding:12px 18px; border-radius:8px; font-weight:600; font-size:13px; transform:translateY(20px); opacity:0; transition:all .2s; z-index:1300; box-shadow:0 6px 20px rgba(0,0,0,.15); max-width:440px;}
+  .toast.show{transform:translateY(0); opacity:1;}
+  .toast.err{background:var(--danger);} .toast.warn{background:var(--warn);}
+  .progress{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--panel); color:var(--text); border:1px solid var(--border-strong); padding:10px 18px; border-radius:8px; font-size:12.5px; z-index:1300; box-shadow:var(--shadow); display:none;}
+  .progress.show{display:block;}
+  .unsupported{max-width:580px; margin:80px auto; text-align:center; color:var(--muted); line-height:1.6;}
+  .modal-back{position:fixed; inset:0; background:rgba(8,11,20,.5); z-index:1100; display:flex; align-items:center; justify-content:center;}
+  .modal-back[hidden]{display:none;}
+  .modal{background:var(--panel); border:1px solid var(--border-strong); border-radius:12px; padding:18px 20px; width:420px; box-shadow:0 12px 40px rgba(0,0,0,.3);}
+  .modal h3{margin:0 0 12px; font-size:15px;}
+  .modal .mrow{margin-bottom:10px;}
+  .modal .mrow label{display:block; font-size:11.5px; color:var(--muted); margin-bottom:3px;}
+  .modal .mactions{display:flex; justify-content:flex-end; gap:8px; margin-top:14px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Confocal ND2 Visualizer <span class="v">V3</span></h1>
+  <div class="tabs">
+    <button class="tab active" data-tab="lib">Library</button>
+    <button class="tab" data-tab="meta">Organize &amp; Rename</button>
+    <button class="tab" data-tab="viz">Visualizer</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="meta" id="headerMeta"></div>
+  <button id="themeToggle">Dark mode</button>
+</header>
+
+<section class="view" id="libView">
+  <div class="lib-head"><h2>Library</h2><button class="primary" id="addCatBtn">+ New Category</button></div>
+  <p class="lib-sub">Top level is the <b>type of confocal imaging</b> (Immunostaining, Live-cell, Whole-mount — add your own). Inside each, link <b>experiment folders</b>. Inside an experiment, create <b>channel sub-folders</b> (named from the gene/antibody of each channel) and drop the matching ND2 files in. Tag any sub-folder with a reusable <b>project</b>. Nothing is uploaded.</p>
+  <div id="catList"></div>
+</section>
+
+<section class="view" id="metaView" hidden>
+  <div class="panel-col col-left"><div class="col-title">Files</div><div class="tree" id="metaTree"></div></div>
+  <div class="col-resizer" id="metaResizeL"></div>
+  <div class="panel-col col-mid"><div class="meta-toolbar" id="metaToolbar"></div><div id="metaTableWrap"></div></div>
+  <div class="col-resizer" id="metaResizeR"></div>
+  <div class="panel-col col-right"><div class="col-title">Preview</div><div id="metaPreview"><div class="ph">Select an image to preview it.</div></div></div>
+</section>
+
+<section class="view" id="vizView" hidden>
+  <aside id="vizSidebar"></aside>
+  <div class="col-resizer" id="vizResize"></div>
+  <main id="vizMain">
+    <div class="toolbar"><span id="vizSummary"></span></div>
+    <div id="vizGrid"></div>
+    <div class="empty" id="vizEmpty" style="display:none;"></div>
+  </main>
+</section>
+
+<div class="lut-editor" id="lutEditor" hidden></div>
+<div class="lightbox" id="lightbox"><canvas id="lightboxCanvas"></canvas><div class="cap" id="lightboxCaption"></div><div class="lb-actions"><button id="lbDownload" class="primary">Download PNG</button><button id="lbClose">Close</button></div></div>
+<div class="modal-back" id="modalBack" hidden><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+<div class="progress" id="progress"></div>
+
+
+<script>
+"use strict";
+// ============================================================================
+//  Confocal ND2 Visualizer V3 — self-contained Chrome/Edge app.
+//  File System Access API + IndexedDB. Pure-JS Nikon ND2 (Ver3.0) reader.
+// ============================================================================
+const FS_OK = (typeof window.showDirectoryPicker === "function");
+const $ = (id)=>document.getElementById(id);
+const el = (t,c,x)=>{ const e=document.createElement(t); if(c)e.className=c; if(x!=null)e.textContent=x; return e; };
+function toast(m,k){ const t=$("toast"); t.textContent=m; t.className="toast show"+(k?(" "+k):""); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"), k==="err"?5000:2500); }
+function showProgress(m){ const p=$("progress"); if(m==null){p.classList.remove("show");return;} p.textContent=m; p.classList.add("show"); }
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+
+function currentTheme(){ return document.documentElement.getAttribute("data-theme")==="dark"?"dark":"light"; }
+function applyTheme(t){ if(t==="dark") document.documentElement.setAttribute("data-theme","dark"); else document.documentElement.removeAttribute("data-theme"); const b=$("themeToggle"); if(b) b.textContent=t==="dark"?"Light mode":"Dark mode"; }
+function initTheme(){ applyTheme(currentTheme()); $("themeToggle").onclick=()=>{ const n=currentTheme()==="dark"?"light":"dark"; applyTheme(n); try{localStorage.setItem("nd2viz-theme",n);}catch(e){} if(APP.tab==="viz") renderViz(); }; }
+
+// ----- IndexedDB ----
+const DB_NAME="nd2viz_v1";
+let _db=null;
+function openDB(){ return new Promise((res,rej)=>{ if(_db)return res(_db); const r=indexedDB.open(DB_NAME,1);
+  r.onupgradeneeded=()=>{ const db=r.result; if(!db.objectStoreNames.contains("kv")) db.createObjectStore("kv"); };
+  r.onsuccess=()=>{_db=r.result;res(_db);}; r.onerror=()=>rej(r.error); }); }
+async function kvGet(k){ const db=await openDB(); return new Promise((res,rej)=>{ const t=db.transaction("kv","readonly").objectStore("kv").get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); }
+async function kvSet(k,v){ const db=await openDB(); return new Promise((res,rej)=>{ const t=db.transaction("kv","readwrite").objectStore("kv").put(v,k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); }); }
+
+// ----- Library model — stored in a metadata FILE (nd2viz_library.json) inside a chosen
+// "library folder" (the folder that holds this HTML + your experiment folders). It is NOT kept in
+// the HTML or in browser storage; IndexedDB only remembers a POINTER to that folder so it reopens
+// automatically. Experiment folders are recorded by their RELATIVE PATH under the library folder.
+// LIB = { categories:[{id,name}], experiments:[{id,categoryId,name,path,handle}], projects, subTags }
+const DEFAULT_CATS=["Immunostaining","Live-cell Imaging","Whole-mount staining"];
+const LIB_FILE="nd2viz_library.json";
+let LIB={categories:[],experiments:[],projects:[],subTags:{}};
+let LIB_ROOT=null;   // FileSystemDirectoryHandle of the library folder
+let LIB_NEEDS_GRANT=false;   // true when a saved library folder exists but this session hasn't been granted access yet
+const catExps=(cid)=>LIB.experiments.filter(e=>e.categoryId===cid);
+const expById=(id)=>LIB.experiments.find(e=>e.id===id);
+function libEmpty(){ LIB={categories:DEFAULT_CATS.map(n=>({id:uid(),name:n})),experiments:[],projects:[],subTags:{}}; }
+function expandAll(){ libExpanded=new Set(); LIB.categories.forEach(c=>libExpanded.add("c:"+c.id)); LIB.experiments.forEach(e=>libExpanded.add("e:"+e.id)); }
+async function loadLibrary(){                 // boot: reopen last library folder + its metadata file
+  libEmpty(); LIB_NEEDS_GRANT=false;
+  try{ LIB_ROOT=await kvGet("libraryRoot")||null; }catch(e){ LIB_ROOT=null; }
+  if(LIB_ROOT){
+    // Browsers reset file-access permission to "prompt" on every reload and forbid re-requesting it
+    // without a user gesture — so on boot we can only auto-load if access already persists.
+    let perm="prompt"; try{ perm=await LIB_ROOT.queryPermission({mode:"readwrite"}); }catch(e){}
+    if(perm==="granted") await loadLibraryFile();
+    else LIB_NEEDS_GRANT=true;   // defer to the first user gesture (see armLibraryAutoGrant)
+  }
+  expandAll();
+}
+let _grantBusy=false;
+async function grantAndLoadLibrary(){         // called from a user gesture: re-authorize the saved folder + load it (no re-pick)
+  if(_grantBusy||!LIB_ROOT||!LIB_NEEDS_GRANT) return;
+  _grantBusy=true;
+  let perm="denied"; try{ perm=await LIB_ROOT.requestPermission({mode:"readwrite"}); }catch(e){}
+  _grantBusy=false;
+  if(perm!=="granted"){ toast(`Allow access to “${LIB_ROOT.name}” to load your library.`,"warn"); return; }
+  LIB_NEEDS_GRANT=false; await loadLibraryFile(); expandAll();
+  if(APP.tab==="lib") renderLibrary();
+  toast("Library loaded.");
+}
+function armLibraryAutoGrant(){               // load the library on the very first interaction so it feels automatic
+  if(!LIB_NEEDS_GRANT) return;
+  const h=()=>{ document.removeEventListener("pointerdown",h,true); document.removeEventListener("keydown",h,true); grantAndLoadLibrary(); };
+  document.addEventListener("pointerdown",h,true); document.addEventListener("keydown",h,true);
+}
+async function loadLibraryFile(){             // read nd2viz_library.json + resolve experiment folders by path
+  if(!LIB_ROOT) return false;
+  let doc=null; try{ const fh=await LIB_ROOT.getFileHandle(LIB_FILE); doc=JSON.parse(await (await fh.getFile()).text()); }catch(e){ return false; }
+  if(!doc) return false;
+  LIB.categories=(doc.categories&&doc.categories.length)?doc.categories:DEFAULT_CATS.map(n=>({id:uid(),name:n}));
+  LIB.projects=doc.projects||[]; LIB.subTags=doc.subTags||{}; LIB.experiments=[];
+  for(const e of (doc.experiments||[])){ let handle=null;
+    try{ handle=LIB_ROOT; for(const seg of String(e.path||"").split("/").filter(Boolean)) handle=await handle.getDirectoryHandle(seg); }catch(err){ handle=null; }
+    LIB.experiments.push({id:e.id,categoryId:e.categoryId,name:e.name,path:e.path||"",handle,addedAt:e.addedAt}); }
+  return true;
+}
+let _libT=null; function saveLibrary(){ clearTimeout(_libT); _libT=setTimeout(()=>saveLibraryFile(),400); }   // debounced write of the metadata file
+async function saveLibraryFile(){
+  if(!LIB_ROOT) return;
+  try{ if((await LIB_ROOT.queryPermission({mode:"readwrite"}))!=="granted" && (await LIB_ROOT.requestPermission({mode:"readwrite"}))!=="granted") return;
+    const doc={version:1,updatedAt:new Date().toISOString(),categories:LIB.categories,projects:LIB.projects,subTags:LIB.subTags,
+      experiments:LIB.experiments.map(e=>({id:e.id,categoryId:e.categoryId,name:e.name,path:e.path||""}))};
+    const fh=await LIB_ROOT.getFileHandle(LIB_FILE,{create:true}); const w=await fh.createWritable(); await w.write(JSON.stringify(doc,null,2)); await w.close();
+  }catch(e){ console.error("library file write",e); }
+}
+async function setLibraryFolder(){            // pick / change the folder that holds the library file
+  let root; try{ root=await window.showDirectoryPicker({id:"nd2viz-root",mode:"readwrite"}); }catch(e){ if(e&&e.name==="AbortError")return false; toast("Folder picker error: "+e.message,"err"); return false; }
+  LIB_ROOT=root; try{ await kvSet("libraryRoot", root); }catch(e){}
+  const loaded=await loadLibraryFile();
+  if(!loaded){ await saveLibraryFile(); }   // no existing metadata → write the current library into a new file here
+  expandAll(); APP.selExpId=null; APP.scan=null; renderLibrary();
+  toast(loaded?`Loaded library from “${root.name}/${LIB_FILE}”.`:`Created “${root.name}/${LIB_FILE}”.`); return true;
+}
+
+const APP={ tab:"lib", selExpId:null, selFilePath:null, scan:null };
+function switchTab(tab){ APP.tab=tab; document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  $("libView").hidden=tab!=="lib"; $("metaView").hidden=tab!=="meta"; $("vizView").hidden=tab!=="viz";
+  if(tab==="meta") onEnterMetaTab(); if(tab==="viz") onEnterVizTab(); }
+
+// ============================================================================
+//  Band scheme
+// ============================================================================
+const BANDS=[2,3,4,5,6];   // 2 = brightfield/transmitted (grayscale); 3-6 = fluorescence bands
+const BAND_INFO={
+  2:{label:"Brightfield / TD",defaultName:"Brightfield",color:[210,210,210],bf:true},
+  3:{label:"Blue / DAPI",defaultName:"DAPI",color:[40,110,255]},
+  4:{label:"Green / GFP",defaultName:"GFP",color:[40,230,80]},
+  5:{label:"Red / RFP·DsRed",defaultName:"DsRed",color:[255,55,55]},
+  6:{label:"Far-red / Cy5",defaultName:"Cy5",color:[230,60,210]},
+};
+function bandForLaser(wl){ if(!wl)return 0; if(wl<430)return 3; if(wl<510)return 4; if(wl<600)return 5; return 6; }
+function bandForEmission(e){ if(!e)return 0; if(e<480)return 3; if(e<545)return 4; if(e<620)return 5; return 6; }
+// Map a fluorophore/filter/dye NAME to a band (used for widefield where there's no laser line).
+function bandForName(n){ n=(n||"").toLowerCase();
+  if(/dapi|hoechst|405|450|\bbfp\b/.test(n)) return 3;
+  if(/fitc|gfp|488|egfp|alexa\s*488|cy2|green|525/.test(n)) return 4;
+  if(/tritc|rfp|dsred|mcherry|m?cherry|cy3|561|568|594|595|tomato|alexa\s*568|alexa\s*594|texas/.test(n)) return 5;
+  if(/cy5|640|647|alexa\s*647|far.?red|apc/.test(n)) return 6;
+  return 0; }
+// Brightfield/transmitted detection from the per-plane text block (name + microscope settings).
+// `laser` = the plane's excitation laser nm (0 for widefield) — a plane WITH a laser is
+// fluorescence, never brightfield (confocal bodies also have an empty Ti2 turret + DIA).
+function isBrightfieldPlane(name,block,laser){
+  const t=(name+" "+(block||""));
+  if(/bright\s*field|transmitted|phase\s*contrast|\bDIC\b|\bBF\b|\bTD\b/i.test(name)) return true;
+  if(/Modality:[^\r\n]*(Brightfield|Transmitted|DIC|Phase\s*Contrast)/i.test(t)) return true;
+  if(/Detector Selection\}:\s*TD\b/i.test(t)) return true;
+  // Nikon Ti2 WIDEFIELD transmitted: the DIA transmitted lamp is the ACTIVE light source and the
+  // epi-fluorescence (Sola) shutter is NOT active — regardless of which filter turret is parked
+  // (the filter is irrelevant for transmitted light). Not a laser/confocal acquisition.
+  if(!laser && !/Laser Scan|Confocal/i.test(t)
+      && (/Shutter\(DIA LED\):\s*Active/i.test(t) || /Illuminator\(DIA\):\s*On/i.test(t))
+      && !/Shutter\(Sola\):\s*Active/i.test(t)) return true;
+  return false; }
+const LUT_PALETTE=[["Blue",[40,110,255]],["Cyan",[0,220,235]],["Green",[40,230,80]],["Yellow",[245,230,40]],["Orange",[255,150,30]],["Red",[255,55,55]],["Magenta",[230,60,210]],["Gray",[235,235,235]]];
+const rgbCss=(c)=>`rgb(${c[0]},${c[1]},${c[2]})`;
+// "Hoechst(3)_SIX1(5)_Caspase3(6)" -> {3:"Hoechst",5:"SIX1",6:"Caspase3"}
+function parseFolderChannels(name){ const out={}; (name||"").split("_").forEach(tok=>{ const m=tok.match(/^(.*)\((\d)\)$/); if(m && BANDS.includes(+m[2])) out[+m[2]]=m[1]; }); return out; }
+// Decide each channel's final band. Precedence: manual override > confident metadata detection >
+// folder-name declaration (fills GUESSED channels, in folder order) > positional default. Idempotent:
+// always recomputed from the immutable ch.detBand / ch.guessed captured at read time.
+function reconcileChannels(info, folderChannels, override){
+  if(!info||!info.channels) return;
+  const fc=folderChannels||{}, ov=override||{};
+  const declared=Object.keys(fc).map(Number).filter(b=>BANDS.includes(b)).sort((a,b)=>a-b);
+  const finalBand=new Array(info.channels.length); const claimed=new Set();
+  info.channels.forEach((ch,i)=>{ const o=ov[i];
+    if(o!=null&&BANDS.includes(+o)){ finalBand[i]=+o; claimed.add(+o); }          // manual override
+    else if(!ch.guessed){ finalBand[i]=ch.detBand; claimed.add(ch.detBand); } }); // confident detection
+  const pool=declared.filter(b=>!claimed.has(b)); let pi=0;                        // folder-declared bands still free
+  info.channels.forEach((ch,i)=>{ if(finalBand[i]!=null)return;
+    finalBand[i]=(pi<pool.length)?pool[pi++]:ch.detBand; claimed.add(finalBand[i]); });
+  info.channels.forEach((ch,i)=>{ const b=finalBand[i]; ch.band=b; ch.color=(BAND_INFO[b]||{}).color||ch.color;
+    ch.dye=fc[b] || ((b===ch.detBand)?ch.detDye:(BAND_INFO[b]?BAND_INFO[b].defaultName:ch.dye)); });
+}
+// re-run reconciliation for every file in one sub-folder after its override map changed
+function applyChannelOverrides(dir){ const scan=APP.scan; if(!scan)return; const ov=(scan.channelOverrides||{})[dir]||{};
+  scan.files.forEach(f=>{ if(subKey(f)!==dir||!f.info)return; reconcileChannels(f.info,f.folderChannels,ov); f.bands=f.info.channels.map(c=>c.band); }); }
+
+// ============================================================================
+//  ND2 reader
+// ============================================================================
+const ND2_MAGIC=0x0ABECEDA;
+const TD16=new TextDecoder("utf-16le");
+function latin1(u8,a,b){ let s=""; for(let i=a;i<b;i++) s+=String.fromCharCode(u8[i]); return s; }
+class ND2File{
+  constructor(handle){ this.handle=handle; this._file=null; this.map=null; this.meta=null; }
+  async file(){ if(!this._file) this._file=await this.handle.getFile(); return this._file; }
+  async slice(off,len){ const f=await this.file(); return await f.slice(off,off+len).arrayBuffer(); }
+  async dvAt(off,len){ return new DataView(await this.slice(off,len)); }
+  async loadMap(){
+    if(this.map) return this.map;
+    const f=await this.file(); const size=f.size; if(size<64) throw new Error("File too small.");
+    if(new DataView(await this.slice(0,4)).getUint32(0,true)!==ND2_MAGIC) throw new Error("Not an ND2 (Ver3) file.");
+    const tailLen=Math.min(8192,size); const tb=await this.slice(size-tailLen,tailLen);
+    const tail=new Uint8Array(tb), dvt=new DataView(tb); const sig="ND2 CHUNK MAP SIGNATURE 0000001!";
+    let sp=-1; for(let i=tail.length-sig.length-8;i>=0;i--){ let ok=true; for(let k=0;k<sig.length;k++){ if(tail[i+k]!==sig.charCodeAt(k)){ok=false;break;} } if(ok){sp=i;break;} }
+    if(sp<0) throw new Error("Unsupported ND2 (no chunk map).");
+    const ptr=Number(dvt.getBigUint64(sp+sig.length,true));
+    const hdr=await this.dvAt(ptr,16); if(hdr.getUint32(0,true)!==ND2_MAGIC) throw new Error("Corrupt chunk map.");
+    const nameLen=hdr.getUint32(4,true), dataLen=Number(hdr.getBigUint64(8,true));
+    const mb=await this.slice(ptr+16+nameLen,dataLen); const u8=new Uint8Array(mb), mdv=new DataView(mb);
+    const map={}; let p=0;
+    while(p<u8.length){ let z=p; while(z<u8.length&&u8[z]!==0x21)z++; if(z>=u8.length)break;
+      const name=latin1(u8,p,z+1); if(name.startsWith("ND2 CHUNK MAP"))break;
+      map[name]={off:Number(mdv.getBigUint64(z+1,true)),size:Number(mdv.getBigUint64(z+9,true))}; p=z+17; }
+    this.map=map; return map;
+  }
+  async readChunk(name){ const map=await this.loadMap(); const c=map[name]; if(!c)return null;
+    const hdr=await this.dvAt(c.off,16); if(hdr.getUint32(0,true)!==ND2_MAGIC)return null;
+    const nl=hdr.getUint32(4,true), dl=Number(hdr.getBigUint64(8,true));
+    const buf=await this.slice(c.off+16+nl,dl); return {buf,dv:new DataView(buf),u8:new Uint8Array(buf)}; }
+  static readLV(dv,u8,start,len,depth){ depth=depth||0; const out={}; let pos=start; const end=start+len;
+    while(pos+2<=end){ const dt=u8[pos],nl=u8[pos+1]; pos+=2; if(dt===0)break;
+      const name=TD16.decode(u8.subarray(pos,pos+nl*2)).replace(/\0+$/,""); pos+=nl*2; let v;
+      if(dt===1){v=u8[pos];pos+=1;} else if(dt===2){v=dv.getInt32(pos,true);pos+=4;} else if(dt===3){v=dv.getUint32(pos,true);pos+=4;}
+      else if(dt===5){v=Number(dv.getBigInt64(pos,true));pos+=8;} else if(dt===6){v=dv.getFloat64(pos,true);pos+=8;}
+      else if(dt===8){ let z=pos; while(z+1<end&&!(u8[z]===0&&u8[z+1]===0))z+=2; v=TD16.decode(u8.subarray(pos,z)); pos=z+2; }
+      else if(dt===9){ const ln=Number(dv.getBigUint64(pos,true)); pos+=8; v="<b>"; pos+=ln; }
+      else if(dt===11){ const c=dv.getUint32(pos,true),ln=Number(dv.getBigUint64(pos+4,true)); pos+=12; v=depth<12?ND2File.readLV(dv,u8,pos,ln,depth+1):0; pos+=ln; }
+      else break;
+      let k=name,j=2; while(k in out){k=name+"#"+j;j++;} out[k]=v; }
+    return out; }
+  async readMeta(){
+    if(this.meta) return this.meta;
+    await this.loadMap();
+    const lv=async(n)=>{ const c=await this.readChunk(n); return c?ND2File.readLV(c.dv,c.u8,0,c.buf.byteLength):null; };
+    const attrs=((await lv("ImageAttributesLV!"))||{}).SLxImageAttributes||{};
+    const calib=(((await lv("ImageCalibrationLV|0!"))||(await lv("ImageCalibrationLV!"))||{}).SLxCalibration)||{};
+    const ti=((await lv("ImageTextInfoLV!"))||{}).SLxImageTextInfo||{};
+    let big=""; for(const v of Object.values(ti)){ if(typeof v==="string"&&v.length>big.length) big=v; }
+    const W=attrs.uiWidth,H=attrs.uiHeight,C=attrs.uiComp||1,bpcMem=attrs.uiBpcInMemory||16,bpcSig=attrs.uiBpcSignificant||bpcMem;
+    const widthBytes=attrs.uiWidthBytes||(W*C*2);
+    const frames=Object.keys(this.map).filter(k=>/^ImageDataSeq\|\d+!$/.test(k)).length||(attrs.uiSequenceCount||1);
+    // per-plane blocks (name + full settings text) so we can tell fluorescence from brightfield
+    const planeBlocks=[]; const hdrs=[]; let h; const hdrRe=/Plane #(\d+):/g; while((h=hdrRe.exec(big))) hdrs.push({n:+h[1],i:h.index});
+    hdrs.forEach((hd,k)=>{ const blk=big.slice(hd.i, k+1<hdrs.length?hdrs[k+1].i:big.length); planeBlocks[hd.n-1]={name:((blk.match(/Name:\s*([^\r\n]*)/)||[])[1]||"").trim(), block:blk}; });
+    const ems=[]; let em; const ere=/Emission Wavelength:\s*([\d.]+)/g; while((em=ere.exec(big))) ems.push(parseFloat(em[1]));
+    const lasers=[]; let lm; const lre=/\{Laser Wavelength\}:\s*([\d.]+)/g; while((lm=lre.exec(big))) lasers.push(parseFloat(lm[1]));
+    const channels=[]; const seen=new Set();
+    for(let i=0;i<C;i++){ const pb=planeBlocks[i]||{name:"",block:""}; const nm=pb.name;
+      // the parked filter-cube name (e.g. "Cy3", "FITC") is more reliable than NIS's plane Name,
+      // which is often mislabelled "FITC" for every widefield channel.
+      const filt=((pb.block||"").match(/FilterChanger[^\r\n]*:\s*\d+\s*\(([^)]+)\)/)||[])[1]||"";
+      let band, dye, guessed=false;
+      if(isBrightfieldPlane(nm,pb.block,lasers[i]||0)){ band=2; dye="Brightfield"; }
+      else { band=bandForLaser(lasers[i])||bandForEmission(ems[i])||bandForName(filt)||bandForName(nm);
+        // No laser/emission/filter/name signal (e.g. multipoint-split "Focused" files strip the text
+        // block) → positional GUESS. Marked so the folder-name declaration / manual override can correct it.
+        if(!band){ band=[3,4,5,6][Math.min(i,3)]; guessed=true; } while(seen.has(band)&&band<6) band++;
+        dye=(filt&&filt.toLowerCase()!=="empty"&&bandForName(filt)===band)?filt:(nm||(BAND_INFO[band]?BAND_INFO[band].defaultName:"Ch"+(i+1))); }
+      seen.add(band);
+      channels.push({index:i,band,dye,guessed,detBand:band,detDye:dye,laser:lasers[i]||0,emission:ems[i]||0,color:(BAND_INFO[band]||{}).color||[200,200,200]}); }
+    let mag=""; const mg=(calib.sObjective||"").match(/(\d+)\s*[xX]/); if(mg) mag=mg[1]+"X";
+    let zoom=0; const zm=big.match(/\{Scanner Zoom\}:\s*([\d.]+)/); if(zm) zoom=parseFloat(zm[1]);
+    const nyq=/nyq/i.test(big)||/nyquist/i.test(big);
+    const focused=Object.keys(this.map).some(k=>/edfbox/i.test(k));     // EDF/Focused = edfbox chunks
+    const stitched=Object.keys(this.map).some(k=>/TileLI/.test(k));     // Large/stitched montage = TileLI chunk
+    this.meta={W,H,C,bpcMem,bpcSig,widthBytes,frames,maxVal:(1<<bpcSig)-1,calibUm:calib.dCalibration||0,objective:calib.sObjective||"",mag,zoom,nyq,channels,zstack:frames>1,focused,stitched};
+    return this.meta;
+  }
+  async decodeFrameWork(frameIdx,factor,workW,workH){
+    const m=this.meta; const C=m.C,W=m.W,H=m.H,widthBytes=m.widthBytes;
+    const ch=await this.readChunk("ImageDataSeq|"+frameIdx+"!"); if(!ch) throw new Error("Missing frame "+frameIdx);
+    const noPad=(widthBytes===W*C*2);
+    const u16=noPad?new Uint16Array(ch.buf,8,((ch.buf.byteLength-8)>>1)):null; const dv=ch.dv;
+    const bands=[]; for(let b=0;b<C;b++) bands.push(new Float32Array(workW*workH));
+    const cnt=new Float32Array(workW*workH); const rowStride=W*C;
+    for(let y=0;y<H;y++){ const wy=(y/factor)|0; if(wy>=workH)continue; const rb=noPad?(y*rowStride):(8+y*widthBytes);
+      for(let x=0;x<W;x++){ const wx=(x/factor)|0; if(wx>=workW)continue; const wi=wy*workW+wx;
+        if(noPad){ const o=rb+x*C; for(let b=0;b<C;b++) bands[b][wi]+=u16[o+b]; } else { const o=rb+x*C*2; for(let b=0;b<C;b++) bands[b][wi]+=dv.getUint16(o+b*2,true); }
+        cnt[wi]++; } }
+    for(let b=0;b<C;b++){ const a=bands[b]; for(let i=0;i<a.length;i++){ const c=cnt[i]; if(c>0)a[i]/=c; } }
+    return bands;
+  }
+}
+
+// ============================================================================
+//  Classical denoise (per work plane): Gaussian, Median, Anisotropic, Total-Variation
+// ============================================================================
+function gaussianBlur(src,w,h,sigma){ if(sigma<=0)return src; const r=Math.max(1,Math.ceil(sigma*2.5)); const k=new Float32Array(2*r+1); let s=0;
+  for(let i=-r;i<=r;i++){ const v=Math.exp(-(i*i)/(2*sigma*sigma)); k[i+r]=v; s+=v; } for(let i=0;i<k.length;i++)k[i]/=s;
+  const tmp=new Float32Array(w*h),out=new Float32Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ let a=0; for(let i=-r;i<=r;i++) a+=src[y*w+clamp(x+i,0,w-1)]*k[i+r]; tmp[y*w+x]=a; }
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ let a=0; for(let i=-r;i<=r;i++) a+=tmp[clamp(y+i,0,h-1)*w+x]*k[i+r]; out[y*w+x]=a; }
+  return out; }
+function medianFilter(src,w,h,rad){ rad=rad||1; const out=new Float32Array(w*h); const win=[];
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){ win.length=0; for(let dy=-rad;dy<=rad;dy++)for(let dx=-rad;dx<=rad;dx++) win.push(src[clamp(y+dy,0,h-1)*w+clamp(x+dx,0,w-1)]); win.sort((a,b)=>a-b); out[y*w+x]=win[win.length>>1]; }
+  return out; }
+// Perona-Malik anisotropic diffusion (edge-preserving)
+function anisoDiffuse(src,w,h,iters,K){ let u=Float32Array.from(src); const nu=new Float32Array(w*h); const lam=0.2; const K2=K*K;
+  for(let it=0;it<iters;it++){
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const i=y*w+x; const c=u[i];
+      const dN=(y>0?u[i-w]:c)-c, dS=(y<h-1?u[i+w]:c)-c, dE=(x<w-1?u[i+1]:c)-c, dW=(x>0?u[i-1]:c)-c;
+      const cN=Math.exp(-(dN*dN)/K2),cS=Math.exp(-(dS*dS)/K2),cE=Math.exp(-(dE*dE)/K2),cW=Math.exp(-(dW*dW)/K2);
+      nu[i]=c+lam*(cN*dN+cS*dS+cE*dE+cW*dW); }
+    u.set(nu);
+  } return u; }
+// Total-variation (ROF) denoise via a few gradient-descent steps
+function tvDenoise(src,w,h,iters,weight){ let u=Float32Array.from(src); const dt=0.18; const eps=1e-3;
+  for(let it=0;it<iters;it++){ const nu=new Float32Array(w*h);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){ const i=y*w+x; const c=u[i];
+      const uE=x<w-1?u[i+1]:c, uW=x>0?u[i-1]:c, uN=y>0?u[i-w]:c, uS=y<h-1?u[i+w]:c;
+      const gx=uE-c, gy=uS-c; const gmag=Math.sqrt(gx*gx+gy*gy+eps);
+      const lap=uE+uW+uN+uS-4*c; const div=lap/gmag;
+      nu[i]=c+dt*(div - (c-src[i])/weight); }
+    u=nu; } return u; }
+function applyDenoise(plane,w,h,d){ if(!d||d.method==="none")return plane; const s=d.strength||1;
+  if(d.method==="gaussian") return gaussianBlur(plane,w,h,s);
+  if(d.method==="median")   return medianFilter(plane,w,h,s>=1.5?2:1);
+  if(d.method==="aniso")    return anisoDiffuse(plane,w,h,Math.round(6*s),Math.max(2,getMaxAbs(plane)*0.06));
+  if(d.method==="tv")       return tvDenoise(plane,w,h,Math.round(8*s),Math.max(8,getMaxAbs(plane)*0.15));
+  return plane; }
+function getMaxAbs(a){ let m=1; for(let i=0;i<a.length;i+=7){ if(a[i]>m)m=a[i]; } return m; }
+
+// ============================================================================
+//  Decode + project
+// ============================================================================
+async function decodeProjection(nd2,opts){
+  const m=await nd2.readMeta(); const cap=opts.cap||1100;
+  const factor=Math.max(1,Math.ceil(Math.max(m.W,m.H)/cap))||1;
+  const workW=Math.max(1,Math.floor(m.W/factor)), workH=Math.max(1,Math.floor(m.H/factor));
+  const C=m.C,N=m.frames; let proj=opts.projection||"max";
+  if(N<=1) proj="single";                       // already a single plane — nothing to stack (#11)
+  const single=(proj==="single")?clamp(opts.zIndex|0,0,N-1):-1;
+  const denoise=opts.denoise;
+  const acc=[]; for(let b=0;b<C;b++) acc.push(new Float32Array(workW*workH));
+  let meanCount=0, bestSharp=null;
+  if(proj==="focus"){ bestSharp=new Float32Array(workW*workH); bestSharp.fill(-1); }
+  const frameList=single>=0?[single]:Array.from({length:N},(_,i)=>i);
+  for(let fi=0;fi<frameList.length;fi++){ const f=frameList[fi];
+    if(opts.onProgress&&N>1) opts.onProgress(fi+1,frameList.length);
+    let bands=await nd2.decodeFrameWork(f,factor,workW,workH);
+    if(denoise&&denoise.method!=="none") bands=bands.map(pl=>applyDenoise(pl,workW,workH,denoise));
+    if(proj==="max"||single>=0){ for(let b=0;b<C;b++){ const a=acc[b],s=bands[b]; for(let i=0;i<a.length;i++){ if(s[i]>a[i])a[i]=s[i]; } } }
+    else if(proj==="mean"){ for(let b=0;b<C;b++){ const a=acc[b],s=bands[b]; for(let i=0;i<a.length;i++) a[i]+=s[i]; } meanCount++; }
+    else if(proj==="focus"){ const lum=new Float32Array(workW*workH); for(let b=0;b<C;b++){ const s=bands[b]; for(let i=0;i<lum.length;i++) lum[i]+=s[i]; }
+      for(let y=0;y<workH;y++)for(let x=0;x<workW;x++){ const i=y*workW+x; const l=lum[i];
+        const lx1=lum[i-(x>0?1:0)],lx2=lum[i+(x<workW-1?1:0)],ly1=lum[i-(y>0?workW:0)],ly2=lum[i+(y<workH-1?workW:0)];
+        const sh=Math.abs(4*l-lx1-lx2-ly1-ly2); if(sh>bestSharp[i]){ bestSharp[i]=sh; for(let b=0;b<C;b++) acc[b][i]=bands[b][i]; } } }
+  }
+  if(proj==="mean"&&meanCount>0){ for(let b=0;b<C;b++){ const a=acc[b]; for(let i=0;i<a.length;i++) a[i]/=meanCount; } }
+  const bandsOut={};
+  m.channels.forEach((ch,idx)=>{ const data=acc[idx]; const {lo,hi,hist}=autoContrast(data,m.maxVal); bandsOut[ch.band]={data,lo,hi,hist,dye:ch.dye,color:ch.color,chIndex:idx}; });
+  return {workW,workH,fullW:m.W,fullH:m.H,calibUm:m.calibUm,maxVal:m.maxVal,bands:bandsOut,meta:m,projUsed:proj};
+}
+function autoContrast(data,maxVal){
+  const bins=256, hist=new Uint32Array(bins), scale=(bins-1)/maxVal;
+  for(let i=0;i<data.length;i++){ const v=data[i]; hist[v>0?Math.min(bins-1,(v*scale)|0):0]++; }
+  const total=data.length, loT=total*0.0035, hiT=total*0.997; let c=0,lo=0,hi=maxVal;
+  for(let i=0;i<bins;i++){ c+=hist[i]; if(c>=loT){ lo=i/scale; break; } }
+  c=0; for(let i=0;i<bins;i++){ c+=hist[i]; if(c>=hiT){ hi=i/scale; break; } }
+  if(hi<=lo) hi=lo+1; return {lo:Math.max(0,lo),hi:Math.min(maxVal,hi),hist};
+}
+function buildLUT(maxVal,black,white,gamma){ const n=maxVal+1,lut=new Uint8ClampedArray(n),span=Math.max(1,white-black),ig=1/(gamma||1);
+  for(let v=0;v<n;v++){ let t=(v-black)/span; t=t<0?0:(t>1?1:t); lut[v]=Math.round(Math.pow(t,ig)*255); } return lut; }
+// composite — lutMap is per-(file) band settings: { [band]:{on,auto,black,white,gamma,color} }
+function compositeToImageData(dec,lutMap,mode,oneBand,gray){
+  const {workW:w,workH:h,maxVal}=dec; const out=new Uint8ClampedArray(w*h*4);
+  const use=(mode==="single")?[oneBand]:BANDS.filter(b=>dec.bands[b]&&lutMap[b]&&lutMap[b].on);
+  for(const band of use){ const bd=dec.bands[band]; if(!bd)continue; const s=lutMap[band]||defaultLut(band);
+    const black=s.auto?bd.lo:s.black, white=s.auto?bd.hi:s.white; const lut=buildLUT(maxVal,black,white,s.gamma);
+    const col=(mode==="single"&&gray)?[255,255,255]:(s.color||bd.color); const cr=col[0]/255,cg=col[1]/255,cb=col[2]/255; const data=bd.data;
+    for(let i=0;i<data.length;i++){ const v=lut[data[i]|0]; if(v===0)continue; const o=i*4; const r=v*cr,g=v*cg,b=v*cb; if(r>out[o])out[o]=r; if(g>out[o+1])out[o+1]=g; if(b>out[o+2])out[o+2]=b; }
+  }
+  // Each microscopy image is fully opaque (its own dark field stays black). The
+  // "transparent background" of exports is the area OUTSIDE these image tiles, handled
+  // by not painting a backdrop on the export canvas.
+  for(let i=3;i<out.length;i+=4) out[i]=255;
+  return new ImageData(out,w,h);
+}
+function decToCanvas(dec,lutMap,mode,band,gray){ const id=compositeToImageData(dec,lutMap,mode,band,gray); const cv=document.createElement("canvas"); cv.width=dec.workW; cv.height=dec.workH; cv.getContext("2d").putImageData(id,0,0); return cv; }
+function defaultLut(band){ const bi=BAND_INFO[band]||{}; const c=bi.color||[200,200,200]; return {on:!bi.bf,auto:true,color:c.slice(),black:0,white:0,gamma:1,override:false}; }   // brightfield off in overlap by default
+
+// ============================================================================
+//  Filesystem
+// ============================================================================
+const META_FILE="nd2viz_metadata.json";
+const ext=(n)=>{ const i=n.lastIndexOf("."); return i<0?"":n.slice(i+1).toLowerCase(); };
+const isNd2=(e)=>e==="nd2";
+async function verifyPermission(handle,write){ if(!handle||typeof handle.queryPermission!=="function") return false; const o={mode:write?"readwrite":"read"};
+  if((await handle.queryPermission(o))==="granted")return true; if((await handle.requestPermission(o))==="granted")return true; return false; }
+async function walkDir(dirHandle,segs,out){ for await(const e of dirHandle.values()){ if(e.name.startsWith("."))continue;
+  if(e.kind==="directory"){ if(/^(Export|Mono_Export|__previews__)$/i.test(e.name))continue; await walkDir(e,segs.concat(e.name),out); }
+  else if(e.kind==="file"&&isNd2(ext(e.name))) out.push({path:segs.concat(e.name).join("/"),name:e.name,dirHandle,fileHandle:e,segs}); } }
+// lightweight: list folders (any depth) that directly contain ND2 files, + counts
+async function listSubfolders(rootHandle){ const res=[]; async function rec(dir,segs){ let count=0; const subs=[];
+    for await(const e of dir.values()){ if(e.name.startsWith("."))continue;
+      if(e.kind==="file"&&isNd2(ext(e.name))) count++;
+      else if(e.kind==="directory"&&!/^(Export|Mono_Export|__previews__)$/i.test(e.name)) subs.push(e); }
+    if(count>0) res.push({subpath:segs.join("/"),name:segs.length?segs[segs.length-1]:"(root)",count,dirHandle:dir,segs});
+    for(const s of subs) await rec(s,segs.concat(s.name)); }
+  await rec(rootHandle,[]); return res; }
+
+// ============================================================================
+//  LIBRARY UI
+// ============================================================================
+let libExpanded=new Set();
+function renderLibrary(){
+  const wrap=$("catList"); wrap.innerHTML=""; $("addCatBtn").onclick=addCategory;
+  // library-folder status bar (the metadata file lives here; folder access is re-granted per session)
+  const fb=el("div"); fb.style.cssText="display:flex;align-items:center;gap:10px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:12.5px;background:var(--panel-2);";
+  fb.appendChild(el("span",null, LIB_ROOT?`Library file: `:`No library folder set. `));
+  if(LIB_ROOT){ const s=el("b",null,LIB_ROOT.name+"/"+LIB_FILE); fb.appendChild(s); }
+  else fb.appendChild(el("span","meta","Pick the folder that holds this HTML + your experiment folders."));
+  const sp=el("span"); sp.style.flex="1"; fb.appendChild(sp);
+  if(LIB_ROOT&&LIB_NEEDS_GRANT){   // saved folder exists but this session hasn't been granted access — one click loads it (no re-pick)
+    const lbtn=el("button","primary","🔓 Load library"); lbtn.onclick=grantAndLoadLibrary; fb.appendChild(lbtn); }
+  const sbtn=el("button", LIB_ROOT?"":"primary", LIB_ROOT?"Change folder…":"📁 Set library folder…"); sbtn.onclick=setLibraryFolder; fb.appendChild(sbtn);
+  wrap.appendChild(fb);
+  if(LIB_ROOT&&LIB_NEEDS_GRANT){ const b=el("div"); b.style.cssText="border:1px solid var(--accent);border-radius:8px;padding:9px 12px;margin-bottom:14px;font-size:12px;color:var(--accent);";
+    b.textContent=`Your library “${LIB_ROOT.name}” is remembered — click anywhere (or “🔓 Load library”) and allow access to show it. Browsers require one confirmation per session for security.`; wrap.appendChild(b); }
+  const unlinked=LIB.experiments.filter(e=>!e.handle);
+  if(LIB_ROOT&&unlinked.length){ const b=el("div"); b.style.cssText="border:1px solid var(--warn);border-radius:8px;padding:9px 12px;margin-bottom:14px;font-size:12px;color:var(--warn);";
+    b.textContent=`⚠ ${unlinked.length} experiment folder(s) couldn't be found under “${LIB_ROOT.name}” (moved, renamed, or on a different folder). Re-link them below.`; wrap.appendChild(b); }
+  if(!LIB.categories.length){ wrap.appendChild(el("div","empty-hint","No categories.")); return; }
+  LIB.categories.forEach(cat=>{
+    const card=el("div","cat"); const head=el("div","cat-head");
+    const caret=el("span","caret", libExpanded.has("c:"+cat.id)?"▾":"▸"); caret.onclick=()=>{ toggleExp("c:"+cat.id); renderLibrary(); }; head.appendChild(caret);
+    const nm=el("input","cname"); nm.value=cat.name; nm.onchange=async()=>{ cat.name=nm.value.trim()||"Category"; nm.value=cat.name; await saveLibrary(); };
+    head.appendChild(nm);
+    const exps=catExps(cat.id); head.appendChild(el("span","ccount",`${exps.length} experiment${exps.length===1?"":"s"}`));
+    const acts=el("div","row-actions");
+    const add=el("button","primary","+ Add Experiment"); add.onclick=()=>addExperiment(cat.id); acts.appendChild(add);
+    if(!DEFAULT_CATS.includes(cat.name)){ const del=el("button","danger","Delete"); del.onclick=()=>deleteCategory(cat.id); acts.appendChild(del); }
+    head.appendChild(acts); card.appendChild(head);
+    if(libExpanded.has("c:"+cat.id)){
+      const list=el("div","exp-list");
+      if(!exps.length) list.appendChild(el("div","empty-hint","No experiments. Click “+ Add Experiment”."));
+      else exps.forEach(e=>list.appendChild(renderExpBlock(e)));
+      card.appendChild(list);
+    }
+    wrap.appendChild(card);
+  });
+}
+function toggleExp(k){ if(libExpanded.has(k)) libExpanded.delete(k); else libExpanded.add(k); }
+function renderExpBlock(exp){
+  const box=el("div","exp"); const row=el("div","exp-row");
+  const open=libExpanded.has("e:"+exp.id);
+  const caret=el("span","caret",open?"▾":"▸"); caret.onclick=()=>{ toggleExp("e:"+exp.id); renderLibrary(); if(libExpanded.has("e:"+exp.id)) loadExpSubs(exp); }; row.appendChild(caret);
+  const nm=el("input","ename"); nm.value=exp.name; nm.onchange=async()=>{ exp.name=nm.value.trim()||"Experiment"; nm.value=exp.name; await saveLibrary(); }; row.appendChild(nm);
+  row.appendChild(el("span","epath", exp.handle?(exp.path||exp.name):("⚠ not found — "+(exp.path||exp.name))));
+  const acts=el("div","row-actions");
+  if(!exp.handle){ const lk=el("button","primary","🔗 Link folder"); lk.onclick=()=>linkExperimentFolder(exp.id); acts.appendChild(lk); }
+  else { const org=el("button","primary","Organize ▸"); org.onclick=()=>{ APP.selExpId=exp.id; APP.selFilePath=null; APP.scan=null; switchTab("meta"); }; acts.appendChild(org); }
+  const rm=el("button","danger","Remove"); rm.onclick=()=>removeExperiment(exp.id); acts.appendChild(rm);
+  row.appendChild(acts); box.appendChild(row);
+  if(open){ const subWrap=el("div"); subWrap.id="subs-"+exp.id; box.appendChild(subWrap);
+    if(exp.handle){ const nb=el("button","ghost","+ New channel sub-folder"); nb.style.marginLeft="22px"; nb.style.marginTop="2px"; nb.onclick=()=>toggleNewSub(exp,box); box.appendChild(nb); }
+    renderExpSubs(exp, subWrap);
+  }
+  return box;
+}
+const _subCache={};
+async function loadExpSubs(exp){ try{ if(!(await verifyPermission(exp.handle,false))) return; _subCache[exp.id]=await listSubfolders(exp.handle); }catch(e){ console.warn(e); _subCache[exp.id]=[]; }
+  const w=document.getElementById("subs-"+exp.id); if(w) renderExpSubs(exp,w); }
+function renderExpSubs(exp,wrap){
+  wrap.innerHTML="";
+  if(!exp.handle){ const d=el("div","empty-hint","Folder not linked on this machine — click “🔗 Link folder”."); d.style.marginLeft="22px"; wrap.appendChild(d); return; }
+  const subs=_subCache[exp.id];
+  if(!subs){ wrap.appendChild(el("div","empty-hint","Loading sub-folders…")).style.marginLeft="22px"; loadExpSubs(exp); return; }
+  if(!subs.length){ const d=el("div","empty-hint","No ND2 sub-folders yet. Create one below, then drop the matching ND2 files into it."); d.style.marginLeft="22px"; wrap.appendChild(d); return; }
+  const list=el("div","sub-list");
+  subs.forEach(s=>{
+    const row=el("div","sub");
+    row.appendChild(el("span","sname", s.name));
+    const chans=parseFolderChannels(s.name); const chips=el("div","chips");
+    Object.keys(chans).map(Number).sort((a,b)=>a-b).forEach(b=>{ const c=el("span","chip",`${chans[b]} (${b})`); c.style.background=rgbCss(BAND_INFO[b].color); chips.appendChild(c); });
+    row.appendChild(chips);
+    row.appendChild(el("span","scount",`${s.count} file${s.count===1?"":"s"}`));
+    const key=exp.id+"::"+s.subpath; const sel=el("select","projsel");
+    sel.appendChild(el("option",null,"— no project —")).value="";
+    LIB.projects.forEach(p=>{ const o=el("option",null,p.name); o.value=p.id; sel.appendChild(o); });
+    const np=el("option",null,"＋ New project…"); np.value="__new"; sel.appendChild(np);
+    sel.value=LIB.subTags[key]||"";
+    sel.onchange=async()=>{ if(sel.value==="__new"){ const name=prompt("New project name:"); if(name&&name.trim()){ const p={id:uid(),name:name.trim()}; LIB.projects.push(p); LIB.subTags[key]=p.id; } else { sel.value=LIB.subTags[key]||""; return; } }
+      else LIB.subTags[key]=sel.value; await saveLibrary(); renderLibrary(); };
+    row.appendChild(sel);
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+}
+function toggleNewSub(exp,box){
+  let form=box.querySelector(".newsub"); if(form){ form.remove(); return; }
+  form=el("div","newsub"); form.appendChild(el("h4","Create a sub-folder — optional prefix (e.g. Day) + the gene/antibody for each channel"));
+  const pre0=el("div","gband"); pre0.style.marginBottom="8px"; pre0.appendChild(el("label",null,"Prefix (optional — e.g. D3, Day5, Region…)"));
+  const preInp=el("input"); preInp.type="text"; preInp.placeholder="D3"; pre0.appendChild(preInp); form.appendChild(pre0);
+  const grid=el("div","grid"); const inputs={};
+  BANDS.forEach(b=>{ const g=el("div","gband"); g.appendChild(el("label",null,BAND_INFO[b].label+" ("+b+")")); const inp=el("input"); inp.type="text"; inp.placeholder=BAND_INFO[b].defaultName; inputs[b]=inp; g.appendChild(inp); grid.appendChild(g); });
+  form.appendChild(grid);
+  const prev=el("div","preview"); form.appendChild(prev);
+  const buildName=()=>{ const pfx=preInp.value.trim().replace(/[\\/:*?"<>|]/g,"-"); const parts=BANDS.filter(b=>inputs[b].value.trim()).map(b=>`${inputs[b].value.trim().replace(/[\\/:*?"<>|]/g,"-")}(${b})`); const ch=parts.join("_"); return (pfx?(pfx+(ch?"_":"")):"")+ch; };
+  const upd=()=>{ prev.textContent=buildName()||"(enter a prefix and/or at least one channel)"; };
+  [preInp,...BANDS.map(b=>inputs[b])].forEach(inp=>inp.oninput=upd); upd();
+  const create=el("button","primary","Create folder"); create.onclick=async()=>{
+    const name=buildName();
+    if(!name){ toast("Enter a prefix and/or at least one channel name.","warn"); return; }
+    try{ if(!(await verifyPermission(exp.handle,true))){ toast("Write permission denied.","err"); return; }
+      await exp.handle.getDirectoryHandle(name,{create:true}); toast(`Created “${name}”. Now drop its ND2 files in.`); form.remove(); await loadExpSubs(exp); }
+    catch(e){ toast("Couldn't create folder: "+e.message,"err"); } };
+  form.appendChild(create);
+  box.insertBefore(form, box.querySelector("div[id^=subs-]").nextSibling);
+}
+async function addCategory(){ const c={id:uid(),name:"New category"}; LIB.categories.push(c); libExpanded.add("c:"+c.id); await saveLibrary(); renderLibrary(); }
+async function deleteCategory(cid){ const exps=catExps(cid); const cat=LIB.categories.find(c=>c.id===cid);
+  if(!confirm(`Delete category “${cat?cat.name:""}” and its ${exps.length} experiment link(s)? Files on disk are NOT deleted.`)) return;
+  LIB.experiments=LIB.experiments.filter(e=>e.categoryId!==cid); LIB.categories=LIB.categories.filter(c=>c.id!==cid); await saveLibrary(); renderLibrary(); }
+async function addExperiment(cid){
+  if(!LIB_ROOT){ toast("First set a library folder (button at the top of the Library tab).","warn"); if(!(await setLibraryFolder())) return; }
+  let handle; try{ handle=await window.showDirectoryPicker({id:"nd2viz-exp",mode:"readwrite"}); }
+  catch(e){ if(e&&e.name==="AbortError")return; toast("Folder picker error: "+e.message,"err"); return; }
+  let rel=null; try{ rel=await LIB_ROOT.resolve(handle); }catch(e){}
+  if(!rel){ toast(`“${handle.name}” must be inside the library folder “${LIB_ROOT.name}”.`,"err"); return; }
+  const path=rel.join("/");
+  if(LIB.experiments.some(e=>e.path===path)){ toast("That folder is already in the library.","warn"); return; }
+  const exp={id:uid(),categoryId:cid,name:handle.name,path,handle,addedAt:Date.now()}; LIB.experiments.push(exp); libExpanded.add("c:"+cid); libExpanded.add("e:"+exp.id);
+  saveLibrary(); renderLibrary(); loadExpSubs(exp); toast(`Added “${handle.name}” (${path||"library root"}).`); }
+async function removeExperiment(id){ const e=expById(id); if(!confirm(`Remove “${e?e.name:""}” from the library? Files on disk are NOT deleted.`))return;
+  LIB.experiments=LIB.experiments.filter(x=>x.id!==id); saveLibrary(); if(APP.selExpId===id){APP.selExpId=null;APP.scan=null;} renderLibrary(); }
+// Re-link a moved/renamed experiment folder — re-pick it (must be under the library folder) and store its new path.
+async function linkExperimentFolder(id){ const e=expById(id); if(!e)return;
+  if(!LIB_ROOT){ if(!(await setLibraryFolder()))return; }
+  let h; try{ h=await window.showDirectoryPicker({id:"nd2viz-exp",mode:"readwrite"}); }catch(err){ if(err&&err.name==="AbortError")return; toast("Folder picker error: "+err.message,"err"); return; }
+  let rel=null; try{ rel=await LIB_ROOT.resolve(h); }catch(e){}
+  if(!rel){ toast(`“${h.name}” must be inside the library folder “${LIB_ROOT.name}”.`,"err"); return; }
+  e.handle=h; e.path=rel.join("/"); e.name=e.name||h.name; saveLibrary(); delete _subCache[id]; renderLibrary(); toast(`Linked “${e.name}” → ${e.path}`); }
+
+// ============================================================================
+//  ORGANIZE & RENAME
+// ============================================================================
+const slug=(t)=>(t||"").trim().replace(/[\\/:*?"<>|]+/g,"-").replace(/\s+/g," ").trim();
+const subKey=(f)=>(f.segs&&f.segs.join("/"))||"(root)";   // which channel sub-folder a file lives in
+const DEFAULT_CONDS=["Condition"];
+function defaultRow(){ return {subject:"",conditions:{},series:"",notes:""}; }
+async function readSidecar(h){ try{ const fh=await h.getFileHandle(META_FILE); const d=JSON.parse(await (await fh.getFile()).text()); return d||null; }catch(e){ return null; } }
+// Single on-disk source of truth: nd2viz_metadata.json (in the experiment folder) holds rename
+// metadata, condition columns, AND the visualizer adjustments (LUTs / colours / scale bars).
+// Because it lives WITH the data it travels via Drive and reflects on any machine/browser (#2).
+async function persistSidecar(){
+  const scan=APP.scan; if(!scan)return; const exp=expById(scan.expId); if(!exp||!exp.handle)return;
+  try{ if(!(await verifyPermission(exp.handle,true)))return;
+    let doc=await readSidecar(exp.handle); if(!doc||typeof doc!=="object")doc={};
+    doc.version=3; doc.updatedAt=new Date().toISOString();
+    doc.conditionColumns=scan.conditionColumns; doc.channelOverrides=scan.channelOverrides||{}; doc.images={}; for(const f of scan.files) doc.images[f.path]=scan.meta[f.path];
+    if(VIZ.expId===scan.expId && VIZ.files.length) doc.viz=collectVizState();   // current viz state; otherwise keep existing doc.viz
+    const fh=await exp.handle.getFileHandle(META_FILE,{create:true}); const w=await fh.createWritable(); await w.write(JSON.stringify(doc,null,2)); await w.close();
+  }catch(e){ console.error("sidecar write",e); }
+}
+const denoisedFromName=(n)=>/denoise/i.test(n);
+
+async function scanExperiment(exp){
+  if(!(await verifyPermission(exp.handle,false))) throw new Error("Read permission denied.");
+  const files=[]; await walkDir(exp.handle,[],files); files.sort((a,b)=>a.path.localeCompare(b.path,undefined,{numeric:true}));
+  const saved=await readSidecar(exp.handle); const savedImgs=(saved&&saved.images)||(saved&&!saved.conditionColumns?saved:null);
+  const savedCC=saved&&saved.conditionColumns;
+  const defCols=(Array.isArray(savedCC)&&savedCC.length)?savedCC.slice():DEFAULT_CONDS.slice();
+  const condMap=(savedCC&&!Array.isArray(savedCC)&&typeof savedCC==="object")?Object.assign({},savedCC):{};   // per sub-folder
+  const channelOverrides=(saved&&saved.channelOverrides&&typeof saved.channelOverrides==="object")?Object.assign({},saved.channelOverrides):{};  // per sub-folder: {chIndex:band}
+  const meta={}, nd2map={}; let done=0;
+  for(const f of files){ showProgress(`Reading ND2 metadata… ${++done}/${files.length}`);
+    const nd2=new ND2File(f.fileHandle); nd2map[f.path]=nd2; let info=null;
+    try{ info=await nd2.readMeta(); }catch(e){ console.warn("meta",f.path,e); }
+    f.info=info; const sk=subKey(f); if(!condMap[sk]) condMap[sk]=defCols.slice(); const cc=condMap[sk];
+    const sv=savedImgs&&savedImgs[f.path]; const m=defaultRow();
+    if(sv){ m.subject=sv.subject||sv.sample||""; m.series=sv.series||""; m.notes=sv.notes||""; m.conditions=Object.assign({},sv.conditions||{}); if(sv.age&&!m.conditions[cc[0]]) m.conditions[cc[0]]=sv.age; }
+    cc.forEach(c=>{ if(!(c in m.conditions)) m.conditions[c]=""; });
+    f.folderChannels=parseFolderChannels(f.segs[f.segs.length-1]||"");
+    f.denoised=denoisedFromName(f.name);
+    reconcileChannels(info, f.folderChannels, channelOverrides[sk]);   // folder-name declaration / manual override corrects guessed bands
+    f.bands=info?info.channels.map(c=>c.band):[];
+    meta[f.path]=m;
+  }
+  showProgress(null); const scan={expId:exp.id,files,meta,nd2:nd2map,conditionColumns:condMap,channelOverrides,vizState:(saved&&saved.viz)||null,previewCache:new Map()}; APP.scan=scan; return scan;
+}
+let _saveT=null; const scheduleSave=()=>{ clearTimeout(_saveT); _saveT=setTimeout(()=>persistSidecar(),600); };
+// rename metadata + viz settings now persist together via persistSidecar() / scheduleSave()
+
+async function onEnterMetaTab(){
+  const view=$("metaView");
+  if(!APP.selExpId){ view.classList.add("no-exp"); $("metaTree").innerHTML=""; $("metaToolbar").innerHTML=""; $("metaTableWrap").innerHTML='<div class="ph" style="height:60vh">Open an experiment from the Library tab.</div>'; $("metaPreview").innerHTML='<div class="ph">No experiment selected.</div>'; return; }
+  view.classList.remove("no-exp"); const exp=expById(APP.selExpId); $("headerMeta").textContent=exp?exp.name:"";
+  if(exp&&!exp.handle){ $("metaTree").innerHTML=""; $("metaToolbar").innerHTML=""; $("metaTableWrap").innerHTML='<div class="ph" style="height:60vh">This experiment’s folder isn’t linked on this machine. Go to the Library tab and click “🔗 Link folder”.</div>'; $("metaPreview").innerHTML='<div class="ph">Folder not linked.</div>'; return; }
+  if(!APP.scan||APP.scan.expId!==APP.selExpId){ $("metaTableWrap").innerHTML='<div class="ph" style="height:60vh">Reading folder…</div>'; try{ await scanExperiment(exp); }catch(e){ $("metaTableWrap").innerHTML='<div class="ph" style="height:40vh">'+e.message+'</div>'; toast(e.message,"err"); return; } }
+  renderMetaAll();
+}
+function renderMetaAll(){ renderMetaTree(); renderMetaToolbar(); renderMetaTable(); if(APP.selFilePath) renderMetaPreview(APP.selFilePath); }
+function renderMetaToolbar(){ const tb=$("metaToolbar"); tb.innerHTML=""; const scan=APP.scan;
+  tb.appendChild(el("span","meta",`${scan.files.length} ND2 file${scan.files.length===1?"":"s"}`));
+  const sp=el("span"); sp.style.flex="1"; tb.appendChild(sp);
+  const auto=el("button",null,"Auto-number series"); auto.onclick=()=>{ autoSeries(false); renderMetaTable(); scheduleSave(); toast("Series auto-numbered."); }; tb.appendChild(auto);
+  const ren=el("button","primary","Rename files ▸"); ren.onclick=renameAll; tb.appendChild(ren);
+}
+// condition columns are per sub-folder (dir = subKey) (#3)
+function condColsForDir(dir){ const m=APP.scan.conditionColumns; if(!m[dir]) m[dir]=DEFAULT_CONDS.slice(); return m[dir]; }
+function filesInDir(dir){ return APP.scan.files.filter(f=>subKey(f)===dir); }
+function addConditionColumn(dir){ const cc=condColsForDir(dir); const used=new Set(cc); let nm="Condition"; let i=2; while(used.has(nm)){ nm="Condition "+i; i++; }
+  cc.push(nm); filesInDir(dir).forEach(f=>{ if(!(nm in APP.scan.meta[f.path].conditions)) APP.scan.meta[f.path].conditions[nm]=""; }); rerenderKeep(); scheduleSave(); }
+function renameConditionColumn(dir,oldName,raw){ const nw=(raw||"").trim(); const cc=condColsForDir(dir); if(!nw||nw===oldName){ rerenderKeep(); return; }
+  if(cc.includes(nw)){ toast(`A column “${nw}” already exists in this folder.`,"warn"); rerenderKeep(); return; } const idx=cc.indexOf(oldName); if(idx<0)return; cc[idx]=nw;
+  filesInDir(dir).forEach(f=>{ const c=APP.scan.meta[f.path].conditions; c[nw]=c[oldName]||""; delete c[oldName]; }); rerenderKeep(); scheduleSave(); }
+function deleteConditionColumn(dir,name){ const has=filesInDir(dir).some(f=>(APP.scan.meta[f.path].conditions[name]||"").trim());
+  if(has&&!confirm(`Delete column “${name}” in this folder? Its values will be cleared.`)) return;
+  APP.scan.conditionColumns[dir]=condColsForDir(dir).filter(c=>c!==name); filesInDir(dir).forEach(f=>delete APP.scan.meta[f.path].conditions[name]); rerenderKeep(); scheduleSave(); }
+function renderMetaTree(){ const t=$("metaTree"); t.innerHTML="";
+  const sw=el("div","meta-switch"); const cur=expById(APP.selExpId);
+  const cs=el("select"); LIB.categories.forEach(c=>{ if(!catExps(c.id).length)return; const o=el("option",null,c.name); o.value=c.id; cs.appendChild(o); });
+  const es=el("select"); const fill=(cid)=>{ es.innerHTML=""; catExps(cid).forEach(e=>{ const o=el("option",null,e.name); o.value=e.id; es.appendChild(o); }); };
+  if(cur){ cs.value=cur.categoryId; fill(cur.categoryId); es.value=cur.id; } else if(cs.options.length){ cs.value=cs.options[0].value; fill(cs.value); }
+  cs.onchange=()=>{ fill(cs.value); if(es.value) switchMetaExp(es.value); }; es.onchange=()=>switchMetaExp(es.value);
+  sw.appendChild(cs); sw.appendChild(es); t.appendChild(sw);
+  const byF=new Map(); APP.scan.files.forEach(f=>{ const d=f.segs.join("/")||"(root)"; if(!byF.has(d))byF.set(d,[]); byF.get(d).push(f); });
+  [...byF.keys()].sort().forEach(d=>{ const hdr=el("div","folder", d==="(root)"?"(root)":d.split("/").pop()); t.appendChild(hdr);
+    byF.get(d).forEach(f=>{ const fe=el("div","file"+(f.path===APP.selFilePath?" sel":""), f.name); fe.title=f.path; fe.onclick=()=>selectFile(f.path); fe.onmouseenter=()=>hoverMetaPreview(f.path); t.appendChild(fe); }); });
+}
+let _hoverMetaT=null;
+function hoverMetaPreview(path){ clearTimeout(_hoverMetaT); _hoverMetaT=setTimeout(()=>renderMetaPreview(path),140); }   // show image on hover without changing selection (#2)
+function switchMetaExp(id){ if(id&&id!==APP.selExpId){ APP.selExpId=id; APP.selFilePath=null; APP.scan=null; onEnterMetaTab(); } }
+
+function procTags(f){ const tags=[]; const i=f.info;
+  if(i){ if(i.focused) tags.push(["Focused","f"]); else if(i.zstack) tags.push(["Z-stack "+i.frames,"z"]); else tags.push(["Single plane","s"]); }
+  if(f.denoised) tags.push(["Denoised","d"]);
+  if(i&&i.stitched) tags.push(["Large "+fovStr(i),"z"]); return tags; }
+function fovStr(i){ if(!i||!i.calibUm)return "stitch"; const w=i.W*i.calibUm/1000, h=i.H*i.calibUm/1000; return (w>=1||h>=1)?(w.toFixed(1)+"×"+h.toFixed(1)+"mm"):(Math.round(i.W*i.calibUm)+"×"+Math.round(i.H*i.calibUm)+"µm"); }
+function autoMag(f){ if(!f.info)return ""; let m=f.info.mag||""; if(f.info.zoom&&f.info.zoom!==1) m+=" ·"+f.info.zoom+"×zoom"; if(f.info.nyq) m+=" ·Nyq"; if(f.info.stitched) m+=" ·Large/stitched"; return m; }
+
+// Manual channel→band override (per sub-folder, by channel index). "" = Auto (detection + folder-name).
+function setChannelOverride(dir, chIndex, val){
+  const scan=APP.scan; if(!scan)return; scan.channelOverrides=scan.channelOverrides||{};
+  const m=scan.channelOverrides[dir]||(scan.channelOverrides[dir]={});
+  if(val===""||val==null) delete m[chIndex]; else m[chIndex]=+val;
+  if(!Object.keys(m).length) delete scan.channelOverrides[dir];
+  applyChannelOverrides(dir); renderMetaTable(); scheduleSave();
+  if(VIZ.expId===scan.expId){ VIZ.expId=null; if(APP.tab==="viz") onEnterVizTab(); }   // force viz rebuild with new bands
+  toast("Channel assignment updated.");
+}
+// A row of per-channel dropdowns so the user can correct a wrong auto-detected channel.
+function channelEditorEl(dir, rep){
+  const scan=APP.scan; const ov=(scan.channelOverrides||{})[dir]||{};
+  const box=el("div"); box.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:5px 0 2px 2px;";
+  if(!rep||!rep.info||!rep.info.channels.length){ return box; }
+  box.appendChild(el("span","meta","Channels:"));
+  rep.info.channels.forEach(ch=>{ const i=ch.index;
+    const cell=el("span"); cell.style.cssText="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;background:var(--panel-2);border:1px solid var(--border);border-radius:6px;padding:2px 7px;";
+    cell.appendChild(el("b",null,"Ch"+(i+1)));
+    const dot=el("span"); dot.style.cssText="width:9px;height:9px;border-radius:50%;display:inline-block;background:"+rgbCss(ch.color)+";"; cell.appendChild(dot);
+    const sel=el("select"); sel.style.cssText="font-size:11px;padding:1px 2px;";
+    const a=el("option",null,"Auto"); a.value=""; sel.appendChild(a);
+    BANDS.forEach(b=>{ const o=el("option",null,BAND_INFO[b].defaultName+" ("+b+")"); o.value=String(b); sel.appendChild(o); });
+    sel.value=(ov[i]!=null)?String(ov[i]):"";
+    sel.title="Override which channel Ch"+(i+1)+" is if auto-detection got it wrong. “Auto” = detect from metadata / sub-folder name.";
+    sel.onchange=()=>setChannelOverride(dir,i,sel.value);
+    cell.appendChild(sel); box.appendChild(cell); });
+  return box;
+}
+function renderMetaTable(){
+  const scan=APP.scan, wrap=$("metaTableWrap"); wrap.innerHTML="";
+  const byF=new Map(); scan.files.forEach((f,i)=>{ f._idx=i; const d=f.segs.join("/")||"(root)"; if(!byF.has(d))byF.set(d,[]); byF.get(d).push(f); });
+  [...byF.keys()].sort().forEach(dir=>{
+    const flist=byF.get(dir); const chans=parseFolderChannels(dir.split("/").pop()||"");
+    const chstr=Object.keys(chans).map(Number).sort((a,b)=>a-b).map(b=>`${chans[b]}(${b})`).join("  ");
+    const hdr=el("div","subhdr"); hdr.appendChild(el("span",null,dir==="(root)"?"(root)":dir.split("/").pop())); if(chstr) hdr.appendChild(el("span","ch","   "+chstr));
+    const addBtn=el("button","ghost","+ Condition column"); addBtn.style.marginLeft="10px"; addBtn.onclick=()=>addConditionColumn(dir); hdr.appendChild(addBtn); wrap.appendChild(hdr);
+    wrap.appendChild(channelEditorEl(dir, flist.find(f=>f.info)));   // per-channel band override (fixes wrong auto-detection)
+    const table=el("table","meta-table"); table.style.setProperty("--orig-w",ORIG_W+"px");
+    const cc=condColsForDir(dir);
+    const thead=el("thead"); const hr=el("tr"); hr.appendChild(el("th","gutter",""));
+    const oth=el("th","orig-col"); oth.appendChild(el("span",null,"Original Filename")); const rz=el("div","th-resizer"); rz.onmousedown=startOrigResize; oth.appendChild(rz); hr.appendChild(oth);
+    hr.appendChild(el("th",null,"Subject"));
+    cc.forEach(col=>{ const th=el("th"); const wH=el("div"); wH.style.cssText="display:flex;align-items:center;gap:2px;"; const ci=el("input"); ci.type="text"; ci.value=col; ci.style.cssText="min-width:64px;font-weight:600;padding:2px 4px;"; ci.title="Rename this condition column (this folder only)"; ci.onchange=()=>renameConditionColumn(dir,col,ci.value); wH.appendChild(ci); const x=el("button","ghost","✕"); x.title="Delete column"; x.onclick=()=>deleteConditionColumn(dir,col); wH.appendChild(x); th.appendChild(wH); hr.appendChild(th); });
+    ["Magnification","Processing","Series","New Filename","Notes"].forEach(h=>hr.appendChild(el("th",null,h)));
+    thead.appendChild(hr); table.appendChild(thead); const tb=el("tbody");
+    flist.forEach(f=>{ const m=scan.meta[f.path]; const tr=el("tr"); tr.dataset.idx=f._idx; if(f.path===APP.selFilePath) tr.classList.add("sel"); tr.onmouseenter=()=>hoverMetaPreview(f.path);
+      const g=el("td","gutter"); const tools=el("div","row-tools");
+      const cp=el("button","ghost","⧉"); cp.title="Copy features"; cp.onclick=(e)=>{e.stopPropagation();copyRow(f.path);}; const ps=el("button","ghost","⤵"); ps.title="Paste features"; ps.onclick=(e)=>{e.stopPropagation();pasteRow(f.path);};
+      tools.appendChild(cp); tools.appendChild(ps); g.appendChild(tools);
+      const fh=el("div","fill-handle"); fh.title="Drag down to fill all features into rows below"; fh.onmousedown=(e)=>startFill(f._idx,e); g.appendChild(fh); tr.appendChild(g);
+      const orig=el("td","orig",f.name); orig.title=f.path; orig.onclick=()=>selectFile(f.path); tr.appendChild(orig);
+      const sub=el("td","cell"); sub.dataset.field="subject"; const si=el("input"); si.type="text"; si.placeholder="IEO / SKO / RO / Mouse"; si.value=m.subject||""; si.onfocus=()=>selectFile(f.path); si.oninput=()=>{ m.subject=si.value; updNew(tr,f); scheduleSave(); }; sub.appendChild(si); addCellFill(sub,f._idx,"subject"); tr.appendChild(sub);
+      cc.forEach(col=>{ const td=el("td","cell"); td.dataset.field="cond:"+col; const ci=el("input"); ci.type="text"; ci.placeholder="—"; ci.value=(m.conditions&&m.conditions[col])||""; ci.onfocus=()=>selectFile(f.path); ci.oninput=()=>{ m.conditions[col]=ci.value; updNew(tr,f); scheduleSave(); }; td.appendChild(ci); addCellFill(td,f._idx,"cond:"+col); tr.appendChild(td); });
+      tr.appendChild(el("td","auto", autoMag(f)||"—"));
+      const pt=el("td","auto"); procTags(f).forEach(([t,c])=>{ const s=el("span","tag "+c,t); pt.appendChild(s); }); tr.appendChild(pt);
+      const ser=el("td","cell"); ser.style.maxWidth="70px"; const sei=el("input"); sei.type="text"; sei.style.minWidth="50px"; sei.placeholder="01"; sei.value=m.series||""; sei.oninput=()=>{ m.series=sei.value; updNew(tr,f); scheduleSave(); }; ser.appendChild(sei); tr.appendChild(ser);
+      const nn=el("td","newname"); nn.dataset.role="newname"; tr.appendChild(nn);
+      const no=el("td","cell"); const ni=el("input"); ni.type="text"; ni.value=m.notes||""; ni.placeholder="…"; ni.style.minWidth="100px"; ni.oninput=()=>{ m.notes=ni.value; scheduleSave(); }; no.appendChild(ni); tr.appendChild(no);
+      tb.appendChild(tr); updNew(tr,f); });
+    table.appendChild(tb); wrap.appendChild(table);
+  });
+}
+// per-cell drag-fill
+function getFieldM(m,field){ return field.startsWith("cond:")?((m.conditions&&m.conditions[field.slice(5)])||""):(m[field]||""); }
+function setFieldM(m,field,v){ if(field.startsWith("cond:")){ m.conditions=m.conditions||{}; m.conditions[field.slice(5)]=v; } else m[field]=v; }
+function addCellFill(td,idx,field){ const h=el("div","cell-fill"); h.title="Drag down to copy this value to rows below"; h.onmousedown=(e)=>startCellFill(idx,field,e); td.appendChild(h); }
+function startCellFill(idx,field,e){ e.preventDefault(); e.stopPropagation(); fillState={kind:"cell",src:idx,cur:idx,field}; document.body.classList.add("col-resizing"); document.addEventListener("mousemove",fillMove,true); document.addEventListener("mouseup",fillEnd,true); }
+function buildNewName(f,m){ const subj=slug(m.subject); const miss=[]; if(!subj)miss.push("Subject"); if(!m.series)miss.push("Series"); if(miss.length) return {name:null,error:"need "+miss.join(", ")};
+  const parts=[subj]; condColsForDir(subKey(f)).forEach(c=>{ const v=slug((m.conditions&&m.conditions[c])||""); if(v) parts.push(v); });
+  if(f.info&&f.info.mag) parts.push(f.info.mag);
+  if(f.info&&f.info.stitched) parts.push("Large");
+  if(f.info&&f.info.focused) parts.push("Focused"); else if(f.info&&f.info.zstack) parts.push("Zstack");
+  if(f.denoised) parts.push("Denoised");
+  let s=String(m.series).trim(); if(/^\d$/.test(s)) s="0"+s; parts.push(s);
+  return {name:parts.join("_")+".nd2",error:null}; }
+function updNew(tr,f){ const m=APP.scan.meta[f.path]; const cell=tr.querySelector('[data-role="newname"]'); if(!cell)return;
+  const {name,error}=buildNewName(f,m); if(error){ cell.textContent="⚠ "+error; cell.style.color="var(--muted-2)"; } else { cell.textContent= name===f.name?"✓ "+name:name; cell.style.color="var(--green)"; cell.title=name; } }
+function seriesSig(f,m){ return [slug(m.subject),...condColsForDir(subKey(f)).map(c=>slug((m.conditions&&m.conditions[c])||"")),(f.info?f.info.mag:""),(f.info&&f.info.stitched?"L":""),(f.info&&f.info.focused?"F":f.info&&f.info.zstack?"Z":"S"),f.denoised?"D":"",f.segs.join("/")].join("|"); }
+function autoSeries(onlyBlank){ const c=new Map(); APP.scan.files.forEach(f=>{ const m=APP.scan.meta[f.path]; const sig=seriesSig(f,m); const n=(c.get(sig)||0)+1; c.set(sig,n); if(onlyBlank&&String(m.series||"").trim())return; m.series=String(n).padStart(2,"0"); }); }
+function selectFile(path){ APP.selFilePath=path; document.querySelectorAll("#metaTableWrap tr.sel").forEach(r=>r.classList.remove("sel")); document.querySelectorAll("#metaTree .file.sel").forEach(r=>r.classList.remove("sel"));
+  renderMetaTree(); const tr=[...document.querySelectorAll("#metaTableWrap tbody tr")].find(r=>APP.scan.files[+r.dataset.idx].path===path); if(tr)tr.classList.add("sel"); renderMetaPreview(path); }
+
+let _prevTok=0;
+async function renderMetaPreview(path){ const scan=APP.scan; const f=scan.files.find(x=>x.path===path); if(!f)return; const box=$("metaPreview"); const tok=++_prevTok; const info=f.info;
+  const chans=()=> info? info.channels.map(c=>{ const nm=f.folderChannels[c.band]||c.dye; return `<span class="ch"><span class="dot" style="background:${rgbCss(c.color)}"></span>${nm} (${c.band})</span>`; }).join(""):"";
+  const metaHtml=()=> info? `<div class="preview-meta"><b>${f.name}</b><br>${info.W}×${info.H} · ${info.C} ch · ${info.focused?"Focused (EDF)":info.zstack?("Z-stack "+info.frames):"single plane"}${f.denoised?" · Denoised":""}${info.stitched?(" · Large "+fovStr(info)):""} · ${autoMag(f)||"?"} · ${info.calibUm?info.calibUm.toFixed(4)+" µm/px":""}<br><span style="color:var(--muted-2)">${info.objective||""}</span></div><div class="chan-legend">${chans()}</div>` : `<div class="preview-meta"><b>${f.name}</b><br><span style="color:var(--danger)">Couldn't read ND2 metadata.</span></div>`;
+  box.innerHTML='<div class="preview-wrap"><div class="ph" style="height:200px">Decoding preview…</div></div>'; if(!info){ box.innerHTML='<div class="preview-wrap">'+metaHtml()+'</div>'; return; }
+  try{ let dec=scan.previewCache.get(path); if(!dec){ dec=await decodeProjection(scan.nd2[path],{cap:420,projection:info.zstack?(info.focused?"single":"max"):"single",zIndex:0}); scan.previewCache.set(path,dec); }
+    if(tok!==_prevTok)return; const lut={}; BANDS.forEach(b=>{ if(dec.bands[b]) lut[b]=defaultLut(b); });
+    const cv=decToCanvas(dec,lut,"overlap"); box.innerHTML='<div class="preview-wrap"></div>'; const wrap=box.firstChild;
+    const disp=el("canvas","preview-canvas"); disp.width=dec.workW; disp.height=dec.workH; disp.getContext("2d").drawImage(cv,0,0); wrap.appendChild(disp); wrap.insertAdjacentHTML("beforeend",metaHtml());
+  }catch(e){ if(tok===_prevTok) box.innerHTML='<div class="preview-wrap"><div class="ph" style="height:120px;color:var(--danger)">Decode failed: '+e.message+'</div>'+metaHtml()+'</div>'; }
+}
+// copy/paste/fill
+let CLIP=null,fillState=null;
+const rowFeat=(m)=>({subject:m.subject,conditions:Object.assign({},m.conditions||{}),notes:m.notes});
+const applyFeat=(m,f)=>{ m.subject=f.subject; m.conditions=Object.assign({},m.conditions||{},f.conditions||{}); m.notes=f.notes; };
+function copyRow(p){ CLIP=rowFeat(APP.scan.meta[p]); toast("Copied — paste or drag fill handle."); }
+function pasteRow(p){ if(!CLIP){toast("Nothing copied.","warn");return;} applyFeat(APP.scan.meta[p],CLIP); rerenderKeep(); scheduleSave(); toast("Pasted."); }
+function rerenderKeep(){ const w=$("metaTableWrap"); const st=w.scrollTop; renderMetaTable(); w.scrollTop=st; }
+function startFill(i,e){ e.preventDefault(); e.stopPropagation(); fillState={kind:"row",src:i,cur:i}; document.body.classList.add("col-resizing"); document.addEventListener("mousemove",fillMove,true); document.addEventListener("mouseup",fillEnd,true); }
+function clearFillPaint(){ document.querySelectorAll("#metaTableWrap tr.fill-target").forEach(t=>t.classList.remove("fill-target")); document.querySelectorAll("#metaTableWrap td.fill-target-cell").forEach(t=>t.classList.remove("fill-target-cell")); }
+function fillMove(e){ if(!fillState)return; const x=document.elementFromPoint(e.clientX,e.clientY); const tr=x&&x.closest?x.closest("#metaTableWrap tbody tr"):null; clearFillPaint();
+  if(tr&&tr.dataset.idx!=null){ fillState.cur=+tr.dataset.idx;
+    document.querySelectorAll("#metaTableWrap tbody tr").forEach(t=>{ const i=+t.dataset.idx; if(i>fillState.src&&i<=fillState.cur){ if(fillState.kind==="cell"){ t.querySelectorAll("td[data-field]").forEach(td=>{ if(td.dataset.field===fillState.field) td.classList.add("fill-target-cell"); }); } else t.classList.add("fill-target"); } }); } }
+function fillEnd(){ document.removeEventListener("mousemove",fillMove,true); document.removeEventListener("mouseup",fillEnd,true); document.body.classList.remove("col-resizing"); clearFillPaint();
+  const st=fillState; fillState=null; if(!st||st.cur<=st.src)return; const scan=APP.scan;
+  if(st.kind==="cell"){ const val=getFieldM(scan.meta[scan.files[st.src].path],st.field); for(let i=st.src+1;i<=st.cur;i++) setFieldM(scan.meta[scan.files[i].path],st.field,val); rerenderKeep(); scheduleSave(); toast(`Filled ${st.cur-st.src} cell(s).`); }
+  else { const feat=rowFeat(scan.meta[scan.files[st.src].path]); for(let i=st.src+1;i<=st.cur;i++) applyFeat(scan.meta[scan.files[i].path],feat); rerenderKeep(); scheduleSave(); toast(`Filled ${st.cur-st.src} row(s). Use “Auto-number series”.`); } }
+
+async function renameAll(){ const scan=APP.scan, exp=expById(scan.expId);
+  if(!(await verifyPermission(exp.handle,true))){ toast("Write permission denied.","err"); return; }
+  autoSeries(true); const plan=[]; const targets={}; let errs=0;
+  for(const f of scan.files){ const m=scan.meta[f.path]; const {name,error}=buildNewName(f,m); if(error){errs++;continue;} if(name===f.name)continue;
+    const key=f.segs.join("/")+"/"+name; targets[key]=(targets[key]||0)+1; plan.push({f,name}); }
+  const dups=Object.keys(targets).filter(k=>targets[k]>1); if(dups.length){ toast(`Blocked: ${dups.length} duplicate target name(s).`,"err"); return; }
+  if(!plan.length){ toast(errs?`Nothing to do (${errs} row(s) missing Sample/Series).`:"All names already up to date.","warn"); return; }
+  if(!confirm(`Rename ${plan.length} file(s) on disk?`+(errs?`\n(${errs} skipped — missing Sample/Series.)`:""))) return;
+  let done=0; for(const {f,name} of plan){ try{
+    if(typeof f.fileHandle.move==="function") await f.fileHandle.move(name);
+    else { const data=await (await f.fileHandle.getFile()).arrayBuffer(); const nh=await f.dirHandle.getFileHandle(name,{create:true}); const w=await nh.createWritable(); await w.write(data); await w.close(); await f.dirHandle.removeEntry(f.name); f.fileHandle=nh; }
+    const oldP=f.path, newP=f.segs.concat(name).join("/"); scan.meta[newP]=scan.meta[oldP]; if(newP!==oldP) delete scan.meta[oldP];
+    if(scan.nd2[oldP]){ scan.nd2[newP]=scan.nd2[oldP]; delete scan.nd2[oldP]; scan.nd2[newP]._file=null; }
+    if(scan.previewCache.has(oldP)){ scan.previewCache.set(newP,scan.previewCache.get(oldP)); scan.previewCache.delete(oldP); }
+    if(APP.selFilePath===oldP) APP.selFilePath=newP; f.name=name; f.path=newP; done++; showProgress(`Renaming… ${done}/${plan.length}`);
+  }catch(e){ console.error("rename",f.path,e); } }
+  showProgress(null); scan.files.sort((a,b)=>a.path.localeCompare(b.path,undefined,{numeric:true})); await persistSidecar().catch(()=>{}); renderMetaAll(); toast(`Renamed ${done} file(s).`); }
+
+// resizers
+let ORIG_W=210;
+function startOrigResize(e){ e.preventDefault(); e.stopPropagation(); const sx=e.clientX, sw=ORIG_W; document.body.classList.add("col-resizing");
+  const mv=(ev)=>{ ORIG_W=clamp(sw+(ev.clientX-sx),90,800); document.querySelectorAll("table.meta-table").forEach(t=>t.style.setProperty("--orig-w",ORIG_W+"px")); };
+  const up=()=>{ document.removeEventListener("mousemove",mv,true); document.removeEventListener("mouseup",up,true); document.body.classList.remove("col-resizing"); try{localStorage.setItem("nd2viz-orig-w",ORIG_W);}catch(e){} };
+  document.addEventListener("mousemove",mv,true); document.addEventListener("mouseup",up,true); }
+function setupPanelResizer(handle,side){ if(!handle)return; handle.addEventListener("mousedown",(e)=>{ e.preventDefault(); const view=$("metaView"); const sx=e.clientX;
+  const cols=getComputedStyle(view).gridTemplateColumns.split(" "); const sl=parseFloat(cols[0])||250, sr=parseFloat(cols[4])||330; handle.classList.add("dragging"); document.body.classList.add("col-resizing");
+  const mv=(ev)=>{ const dx=ev.clientX-sx; if(side==="left") view.style.setProperty("--meta-left",clamp(sl+dx,150,640)+"px"); else view.style.setProperty("--meta-right",clamp(sr-dx,200,760)+"px"); };
+  const up=()=>{ document.removeEventListener("mousemove",mv,true); document.removeEventListener("mouseup",up,true); handle.classList.remove("dragging"); document.body.classList.remove("col-resizing"); };
+  document.addEventListener("mousemove",mv,true); document.addEventListener("mouseup",up,true); }); }
+function initMetaResizers(){ try{ const O=parseFloat(localStorage.getItem("nd2viz-orig-w")); if(O)ORIG_W=O; }catch(e){} setupPanelResizer($("metaResizeL"),"left"); setupPanelResizer($("metaResizeR"),"right"); }
+
+// ============================================================================
+//  VISUALIZER
+// ============================================================================
+const VIZ={ expId:null, projection:"max", zIndex:0, denoise:{method:"none",strength:1},
+  showSingles:true, singleGray:false, scaleBarUm:50, scaleBarColor:"white", scaleBarLabel:true,
+  imageSize:300, cap:1100, subfolder:"__all__", project:"__all__", typeFilter:"all", search:"",
+  files:[], selected:new Set(), decodeGen:0, pngScale:2, exportFormat:"png", exportBg:"transparent",
+  colOrder:["overlap",2,3,4,5,6], colHidden:new Set(),
+  globalLut:{} };   // globalLut[band] controls ALL images; per-file f.lut[band].override wins
+let vizCollapsed=new Set();
+// Effective LUT for a (file,band): per-file override if set, else the global control.
+// A per-image override (colour + intensity) wins over the global control. The "Save
+// adjustments" button stores a full per-image override; the global colour control is
+// selection-aware (see syncGlobalColorToShown / applyGlobalColorToShown below).
+function effLut(f,band){ const o=f.lut&&f.lut[band]; if(o&&o.override) return o; return VIZ.globalLut[band]||(VIZ.globalLut[band]=defaultLut(band)); }
+function effLutMap(f){ const m={}; for(const b of BANDS){ if(f.dec&&f.dec.bands[b]) m[b]=effLut(f,b); } return m; }
+function chanColorForBand(b){ return (VIZ.globalLut[b]||defaultLut(b)).color; }
+// If every shown image that has a band uses the same colour, reflect it in the global
+// control — so reselecting a saved group updates the general colour back to that group's.
+function syncGlobalColorToShown(){ BANDS.forEach(b=>{ let key=null,col=null,uniform=true,seen=false; vizShownFiles().forEach(f=>{ if(!f.bandsPresent.includes(b))return; const c=effLut(f,b).color; const k=c.join(","); if(!seen){seen=true;key=k;col=c;} else if(k!==key) uniform=false; }); if(seen&&uniform&&col){ if(!VIZ.globalLut[b])VIZ.globalLut[b]=defaultLut(b); VIZ.globalLut[b].color=col.slice(); } }); }
+// Editing the general colour recolours every shown image (incl. ones with saved overrides).
+function applyGlobalColorToShown(band,c){ vizShownFiles().forEach(f=>{ const o=f.lut&&f.lut[band]; if(o&&o.override) o.color=c.slice(); }); }
+// Editing the global gamma / black / white / auto also pushes onto shown images that have saved
+// per-image overrides (so a global adjustment still reaches already-adjusted images, #4).
+function applyGlobalIntensityToShown(band,patch){ vizShownFiles().forEach(f=>{ const o=f.lut&&f.lut[band]; if(o&&o.override) Object.assign(o,patch); }); }
+function effScaleUm(f){ return (f.scaleBarUm!=null)?f.scaleBarUm:VIZ.scaleBarUm; }
+// Scale bar mirrors the colour model: shown images keep their own saved length, but editing
+// the global length pushes it onto every shown image; reselecting a group syncs the global
+// control back to the group's shared length (#1).
+function applyGlobalScaleToShown(um){ vizShownFiles().forEach(f=>{ if(f.scaleBarUm!=null) f.scaleBarUm=um; }); }
+function syncGlobalScaleToShown(){ let v=null,uniform=true,seen=false; vizShownFiles().forEach(f=>{ const u=effScaleUm(f); if(!seen){seen=true;v=u;} else if(u!==v) uniform=false; }); if(seen&&uniform&&v!=null) VIZ.scaleBarUm=v; }
+function condColsFor(f){ const map=VIZ.conditionColumns||{}; return map[subKey(f)]||[]; }
+function vizTitle(f){ const m=f.meta; if(!m||!m.subject) return f.name; const conds=condColsFor(f).map(c=>m.conditions&&m.conditions[c]).filter(Boolean); return slug(m.subject)+(conds.length?(" · "+conds.join(" · ")):""); }
+function vizTitleSlug(f){ const m=f.meta; if(!m||!m.subject) return f.name.replace(/\.nd2$/i,""); const conds=condColsFor(f).map(c=>m.conditions&&m.conditions[c]).filter(Boolean); return [slug(m.subject),...conds.map(slug)].filter(Boolean).join("_"); }
+// ---- persist visualizer display state per experiment (#2) ----
+function collectVizState(){ const files={}; VIZ.files.forEach(f=>{ const o={}; let any=false; BANDS.forEach(b=>{ if(f.lut[b]&&f.lut[b].override){ o[b]=f.lut[b]; any=true; } }); const e={}; if(any)e.lut=o; if(f.scaleBarUm!=null)e.scaleBarUm=f.scaleBarUm; if(any||f.scaleBarUm!=null) files[f.path]=e; });
+  return { globalLut:VIZ.globalLut, files, scaleBarUm:VIZ.scaleBarUm, scaleBarColor:VIZ.scaleBarColor, scaleBarLabel:VIZ.scaleBarLabel, projection:VIZ.projection, zIndex:VIZ.zIndex, denoise:VIZ.denoise, singleGray:VIZ.singleGray, showSingles:VIZ.showSingles, imageSize:VIZ.imageSize, exportFormat:VIZ.exportFormat, exportBg:VIZ.exportBg, pngScale:VIZ.pngScale, colOrder:VIZ.colOrder, colHidden:[...VIZ.colHidden] }; }
+let _vizSaveT=null; function scheduleVizSave(){ if(!VIZ.expId)return; clearTimeout(_vizSaveT); _vizSaveT=setTimeout(()=>persistSidecar(),500); }
+async function applyVizState(expId){
+  let s=(APP.scan&&APP.scan.expId===expId)?APP.scan.vizState:null;
+  let migrated=false;
+  if(!s){ try{ s=await kvGet("viz:"+expId); }catch(e){} if(s) migrated=true; }              // legacy: pre-sidecar IndexedDB → migrate into the sidecar
+  if(!s)return;
+  if(migrated && APP.scan && APP.scan.expId===expId){ APP.scan.vizState=s; scheduleVizSave(); }  // copy old settings into the on-disk sidecar
+  if(s.globalLut) Object.keys(s.globalLut).forEach(b=>{ VIZ.globalLut[b]=Object.assign(defaultLut(+b), s.globalLut[b]); if(s.globalLut[b].color) VIZ.globalLut[b].color=s.globalLut[b].color.slice(); });
+  if(s.files) VIZ.files.forEach(f=>{ const e=s.files[f.path]; if(!e)return; if(e.lut){ BANDS.forEach(b=>{ if(e.lut[b]){ f.lut[b]=Object.assign({},e.lut[b]); if(e.lut[b].color) f.lut[b].color=e.lut[b].color.slice(); } }); } if(e.scaleBarUm!=null) f.scaleBarUm=e.scaleBarUm; });
+  ["scaleBarUm","scaleBarColor","scaleBarLabel","projection","zIndex","singleGray","showSingles","imageSize","exportFormat","exportBg","pngScale"].forEach(k=>{ if(s[k]!==undefined) VIZ[k]=s[k]; });
+  if(Array.isArray(s.colOrder)&&s.colOrder.length) VIZ.colOrder=s.colOrder.map(k=>k==="overlap"?"overlap":+k);
+  if(Array.isArray(s.colHidden)) VIZ.colHidden=new Set(s.colHidden.map(k=>k==="overlap"?"overlap":+k));
+  if(s.denoise) VIZ.denoise=Object.assign({method:"none",strength:1},s.denoise);
+}
+// "Lock & save" — bake the CURRENT look (global or per-image, + scale bar) onto every
+// shown image as its own per-image override, then persist. Future global tweaks for a
+// different group then can't disturb these images (overrides always win over global).
+function saveShownAdjustments(){
+  const files=vizShownFiles().filter(f=>f.dec);
+  if(!files.length){ toast("No decoded images are shown to save.","warn"); return; }
+  files.forEach(f=>{ BANDS.forEach(b=>{ if(f.dec.bands[b]){ const eff=effLut(f,b); f.lut[b]=Object.assign({},eff,{override:true,color:eff.color.slice()}); } }); f.scaleBarUm=effScaleUm(f); });
+  if(VIZ.expId) persistSidecar();
+  renderViz();
+  toast(`Locked & saved adjustments for ${files.length} image${files.length===1?"":"s"} — they’ll keep these settings.`);
+}
+function resetShownAdjustments(){
+  const files=vizShownFiles(); if(!files.length) return;
+  if(!confirm(`Clear saved per-image adjustments on the ${files.length} shown image(s) and follow the global settings again?`)) return;
+  files.forEach(f=>{ f.lut={}; f.scaleBarUm=null; });
+  if(VIZ.expId) persistSidecar();
+  buildVizSidebar(expById(VIZ.expId)); renderViz();
+  toast(`Reset ${files.length} image${files.length===1?"":"s"} to the global settings.`);
+}
+
+async function onEnterVizTab(){
+  const exp=APP.selExpId?expById(APP.selExpId):(LIB.experiments.find(e=>e.handle)||LIB.experiments[0]||null);
+  if(!exp){ $("vizSidebar").innerHTML='<div class="section"><p class="hint">Add an experiment in the Library tab first.</p></div>'; $("vizGrid").innerHTML=""; $("vizSummary").textContent=""; $("vizEmpty").style.display="block"; $("vizEmpty").textContent="Add an experiment first."; return; }
+  if(!exp.handle){ $("vizSidebar").innerHTML='<div class="section"><p class="hint">This experiment’s folder isn’t linked on this machine. Go to the Library tab and click “🔗 Link folder”.</p></div>'; $("vizGrid").innerHTML=""; $("vizSummary").textContent=""; $("vizEmpty").style.display="block"; $("vizEmpty").textContent="Folder not linked — link it in the Library tab."; return; }
+  $("headerMeta").textContent=exp.name;
+  if(VIZ.expId!==exp.id||!APP.scan||APP.scan.expId!==exp.id){ try{ if(!APP.scan||APP.scan.expId!==exp.id) await scanExperiment(exp); }catch(e){ toast(e.message,"err"); return; } loadVizFromScan(exp.id); await applyVizState(exp.id); }
+  buildVizSidebar(exp); renderViz(); decodeVizFiles();
+}
+function loadVizFromScan(expId){ const scan=APP.scan; VIZ.expId=expId;
+  VIZ.files=scan.files.filter(f=>f.info).map(f=>({ path:f.path,name:f.name,segs:f.segs,nd2:scan.nd2[f.path],info:f.info,meta:scan.meta[f.path],
+    folderChannels:f.folderChannels||{}, denoised:f.denoised, bandsPresent:f.info.channels.map(c=>c.band), dec:null,decKey:null,lut:{},scaleBarUm:null,_row:null,_cells:[] }));
+  VIZ.selected=new Set(VIZ.files.map(f=>f.path)); VIZ.subfolder="__all__"; VIZ.project="__all__"; VIZ.typeFilter="all"; VIZ.stitchFilter="all";
+  VIZ.conditionColumns=Object.assign({},scan.conditionColumns||{});
+  VIZ.magSel=new Set(VIZ.files.map(f=>f.info.mag).filter(Boolean));
+  VIZ.condSel={}; VIZ.files.forEach(f=>fileConds(f).forEach(([col,v])=>{ (VIZ.condSel[col]||(VIZ.condSel[col]=new Set())).add(v); }));   // per condition-column
+  VIZ.colOrder=["overlap",...BANDS]; VIZ.colHidden=new Set();   // column order (drag) + per-column show/hide (kept out of the overlap)
+  const all=new Set(); VIZ.files.forEach(f=>f.bandsPresent.forEach(b=>all.add(b))); BANDS.forEach(b=>{ if(all.has(b)&&!VIZ.globalLut[b]) VIZ.globalLut[b]=defaultLut(b); });
+}
+function chanName(f,band){ return (f.folderChannels&&f.folderChannels[band]) || (f.info.channels.find(c=>c.band===band)||{}).dye || BAND_INFO[band].defaultName; }
+function vizSubfolders(){ const s=new Set(); VIZ.files.forEach(f=>s.add(f.segs.join("/")||"(root)")); return [...s].sort(); }
+function subProject(f){ const key=VIZ.expId+"::"+(f.segs.join("/")); const pid=LIB.subTags[key]; const p=LIB.projects.find(x=>x.id===pid); return p?p.name:""; }
+function fileCondValues(f){ const c=(f.meta&&f.meta.conditions)||{}; return Object.keys(c).map(k=>(c[k]||"").trim()).filter(Boolean); }
+// [ [columnName, value], ... ] for a file's non-empty conditions
+function fileConds(f){ const c=(f.meta&&f.meta.conditions)||{}; const out=[]; Object.keys(c).forEach(col=>{ const v=(c[col]||"").trim(); if(v) out.push([col,v]); }); return out; }
+// scope = experiment narrowed only by sub-folder + project (the basis for the filter facets)
+function vizScopeFiles(){ let arr=VIZ.files;
+  if(VIZ.subfolder!=="__all__") arr=arr.filter(f=>(f.segs.join("/")||"(root)")===VIZ.subfolder);
+  if(VIZ.project!=="__all__") arr=arr.filter(f=>{ const key=VIZ.expId+"::"+(f.segs.join("/")); return LIB.subTags[key]===VIZ.project; });
+  return arr; }
+function vizScopeMags(){ return [...new Set(vizScopeFiles().map(f=>f.info.mag).filter(Boolean))].sort((a,b)=>(parseInt(a)||0)-(parseInt(b)||0)); }
+// { columnName: Set(distinct non-empty values) } across scope files — one filter group per column
+function vizScopeCondCols(){ const map={}; vizScopeFiles().forEach(f=>fileConds(f).forEach(([col,v])=>{ (map[col]||(map[col]=new Set())).add(v); })); return map; }
+function vizCandidateFiles(){ let arr=vizScopeFiles();
+  if(VIZ.typeFilter==="stack") arr=arr.filter(f=>f.info.zstack);
+  else if(VIZ.typeFilter==="projected") arr=arr.filter(f=>!f.info.zstack);   // single plane incl. Focused / MaxIP
+  if(VIZ.stitchFilter==="single") arr=arr.filter(f=>!f.info.stitched);
+  else if(VIZ.stitchFilter==="large") arr=arr.filter(f=>f.info.stitched);
+  if(VIZ.magSel) arr=arr.filter(f=>!f.info.mag || VIZ.magSel.has(f.info.mag));
+  if(VIZ.condSel) arr=arr.filter(f=>fileConds(f).every(([col,v])=>!VIZ.condSel[col]||VIZ.condSel[col].has(v)));
+  if(VIZ.search){ const q=VIZ.search.toLowerCase(); arr=arr.filter(f=>f.name.toLowerCase().includes(q)); }
+  return arr; }
+function vizShownFiles(){ return vizCandidateFiles().filter(f=>VIZ.selected.has(f.path)); }
+function vizActiveBands(){ const s=new Set(); vizShownFiles().forEach(f=>f.bandsPresent.forEach(b=>s.add(b))); return BANDS.filter(b=>s.has(b)); }
+// Bands eligible for a single-channel column: present AND (globally "on" OR brightfield).
+// Deselecting a fluorescence channel globally removes its column (#2); brightfield always keeps
+// its column (it's off in the OVERLAP by default but still shown as its own grayscale column).
+function vizOnBands(){ return vizActiveBands().filter(b=>{ const s=VIZ.globalLut[b]||defaultLut(b); return s.on || (BAND_INFO[b]&&BAND_INFO[b].bf); }); }
+// Candidate columns in display order: "overlap" + each on-band (used by the column show/hide chips).
+function vizColumnKeys(){ const on=vizOnBands(); let order=(VIZ.colOrder&&VIZ.colOrder.length)?VIZ.colOrder.slice():["overlap",...BANDS];
+  if(!order.includes("overlap")) order.unshift("overlap"); on.forEach(b=>{ if(!order.includes(b)) order.push(b); });
+  return order.filter(k=>k==="overlap"||on.includes(k)); }
+// The actually-rendered columns (candidates minus the per-column-hidden ones, respecting Show-singles).
+function vizColumns(){ return vizColumnKeys().filter(k=>{ if(VIZ.colHidden.has(k)) return false; if(k!=="overlap"&&!VIZ.showSingles) return false; return true; })
+  .map(k=> k==="overlap"?{key:"overlap",mode:"overlap",band:null}:{key:k,mode:"single",band:k}); }
+// Reorder columns by dragging a header onto another (#B). Mutates VIZ.colOrder.
+function moveCol(dragKey,targetKey){ const norm=(k)=>k==="overlap"?"overlap":+k; dragKey=norm(dragKey); targetKey=norm(targetKey); if(dragKey===targetKey)return;
+  let order=(VIZ.colOrder&&VIZ.colOrder.length)?VIZ.colOrder.slice():["overlap",...BANDS]; if(!order.includes("overlap"))order.unshift("overlap"); BANDS.forEach(b=>{ if(!order.includes(b)) order.push(b); });
+  order=order.filter(k=>k!==dragKey); const ti=order.indexOf(targetKey); if(ti<0)order.push(dragKey); else order.splice(ti,0,dragKey);
+  VIZ.colOrder=order; renderViz(); scheduleVizSave(); }
+function chanNameForBand(b){ for(const f of vizShownFiles()){ if(f.bandsPresent.includes(b)) return chanName(f,b); } return BAND_INFO[b].defaultName; }
+
+function decKey(){ return [VIZ.projection,VIZ.zIndex,VIZ.cap,VIZ.denoise.method,VIZ.denoise.strength].join("|"); }
+async function decodeVizFiles(){
+  const gen=++VIZ.decodeGen; const key=decKey(); const files=vizShownFiles(); const todo=files.filter(f=>f.decKey!==key); let done=0;
+  for(const f of todo){ if(gen!==VIZ.decodeGen)return; try{ showProgress(`Decoding ${f.name}… (${++done}/${todo.length})`);
+    // skip denoise on already-denoised files (#4)
+    const dn=(f.denoised)?{method:"none"}:VIZ.denoise;
+    const dec=await decodeProjection(f.nd2,{cap:VIZ.cap,projection:VIZ.projection,zIndex:VIZ.zIndex,denoise:dn,onProgress:(a,b)=>showProgress(`Decoding ${f.name}…  Z ${a}/${b}  (${done}/${todo.length})`)});
+    if(gen!==VIZ.decodeGen)return; f.dec=dec; f.decKey=key; f.decErr=null;
+    BANDS.forEach(b=>{ if(dec.bands[b]&&!f.lut[b]){ f.lut[b]=defaultLut(b); } });
+    if(APP.tab==="viz") renderViz();
+  }catch(e){ console.error("decode",f.path,e); f.decErr=e.message; if(APP.tab==="viz") renderViz(); } }
+  if(gen===VIZ.decodeGen){ showProgress(null); if(APP.tab==="viz") renderViz(); }
+}
+function invalidateDecodes(){ VIZ.files.forEach(f=>{ f.dec=null; f.decKey=null; }); }
+
+function secWrap(title){ const section=el("div","section"); const collapsed=vizCollapsed.has(title);
+  const tg=el("div","sec-toggle"); tg.appendChild(el("span","sec-caret",collapsed?"▸":"▾")); tg.appendChild(el("div","title",title));
+  tg.onclick=()=>{ if(vizCollapsed.has(title)) vizCollapsed.delete(title); else vizCollapsed.add(title); buildVizSidebar(expById(VIZ.expId)); };
+  section.appendChild(tg); return {section,appendChild:(n)=>{ if(!collapsed) section.appendChild(n); }}; }
+function selField(label,opts,value,onChange){ const f=el("div","field"); f.appendChild(el("label",null,label)); const s=el("select"); opts.forEach(([v,t])=>{ const o=el("option",null,t); o.value=v; s.appendChild(o); }); s.value=value; s.onchange=()=>onChange(s.value); f.appendChild(s); return f; }
+function toggleRow(label,checked,onChange){ const f=el("div","field"); const cl=el("label"); cl.style.cssText="flex-direction:row;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--muted);"; const cb=el("input"); cb.type="checkbox"; cb.checked=!!checked; cb.onchange=()=>onChange(cb.checked); cl.appendChild(cb); cl.appendChild(el("span",null,label)); f.appendChild(cl); return f; }
+// Checkbox list filter (values + per-value count + All/None). Toggling a value mutates selSet.
+function filterCheckList(label,values,selSet,countFn,onChange){
+  const f=el("div","field");
+  const head=el("div"); head.style.cssText="display:flex;align-items:center;gap:6px;";
+  head.appendChild(el("label",null,label)); const sp=el("span"); sp.style.flex="1"; head.appendChild(sp);
+  const all=el("button","ghost","All"); all.onclick=()=>{ values.forEach(v=>selSet.add(v)); onChange(); };
+  const none=el("button","ghost","None"); none.onclick=()=>{ values.forEach(v=>selSet.delete(v)); onChange(); };
+  head.appendChild(all); head.appendChild(none); f.appendChild(head);
+  const list=el("div","file-list"); list.style.maxHeight="200px";
+  values.forEach(v=>{ const on=selSet.has(v); const lab=el("label",on?"on":""); const cb=el("input"); cb.type="checkbox"; cb.checked=on;
+    cb.onchange=()=>{ if(cb.checked)selSet.add(v); else selSet.delete(v); onChange(); };
+    const nm=el("span","nm",v); nm.style.flex="1";
+    const cnt=el("span",null,String(countFn?countFn(v):"")); cnt.style.cssText="margin-left:auto;color:var(--muted-2);font-size:11px;font-variant-numeric:tabular-nums;";
+    lab.appendChild(cb); lab.appendChild(nm); lab.appendChild(cnt); list.appendChild(lab); });
+  f.appendChild(list); return f; }
+function miniSlider(label,min,max,value,onInput,isFloat){ const row=el("div"); row.style.cssText="display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--muted);margin-top:3px;"; const lb=el("span",null,label); lb.style.width="34px"; row.appendChild(lb); const r=el("input"); r.type="range"; r.min=min; r.max=max; r.step=isFloat?0.05:1; r.value=value; r.style.flex="1"; const v=el("span",null,isFloat?(+value).toFixed(2):Math.round(value)); v.style.cssText="width:38px;text-align:right;"; r.oninput=()=>{ const val=isFloat?parseFloat(r.value):Math.round(+r.value); v.textContent=isFloat?val.toFixed(2):val; onInput(val); }; row.appendChild(r); row.appendChild(v); return row; }
+function renderGlobalLutCard(band){
+  const s=VIZ.globalLut[band]||(VIZ.globalLut[band]=defaultLut(band));
+  const card=el("div"); card.style.cssText="border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:8px;background:var(--panel-2);"+(s.on?"":"opacity:.55;");
+  const head=el("div"); head.style.cssText="display:flex;align-items:center;gap:7px;margin-bottom:6px;";
+  const sw=el("div"); sw.style.cssText="width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.25);background:"+rgbCss(s.color); head.appendChild(sw);
+  const nm=el("span",null,chanNameForBand(band)+" ("+band+")"); nm.style.cssText="font-weight:600;font-size:12.5px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"; head.appendChild(nm);
+  const on=el("input"); on.type="checkbox"; on.checked=s.on; on.title="Show this channel in overlap"; on.onchange=()=>{ s.on=on.checked; renderViz(); buildVizSidebar(expById(VIZ.expId)); }; head.appendChild(on);
+  card.appendChild(head);
+  const colors=el("div"); colors.style.cssText="display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px;";
+  LUT_PALETTE.forEach(([cn,c])=>{ const e2=el("div"); e2.title=cn; e2.style.cssText="width:15px;height:15px;border-radius:3px;cursor:pointer;background:"+rgbCss(c)+";border:2px solid "+((c[0]===s.color[0]&&c[1]===s.color[1]&&c[2]===s.color[2])?"var(--text)":"transparent"); e2.onclick=()=>{ s.color=c.slice(); applyGlobalColorToShown(band,c); renderViz(); buildVizSidebar(expById(VIZ.expId)); scheduleVizSave(); }; colors.appendChild(e2); }); card.appendChild(colors);
+  const mv=VIZ.files[0]?VIZ.files[0].info.maxVal:4095;
+  const al=el("label"); al.style.cssText="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;margin-bottom:2px;"; const ac=el("input"); ac.type="checkbox"; ac.checked=s.auto; ac.onchange=()=>{ s.auto=ac.checked; if(!s.auto&&!s.white) s.white=Math.round(mv*0.5); applyGlobalIntensityToShown(band,s.auto?{auto:true}:{auto:false,black:s.black,white:s.white}); renderViz(); buildVizSidebar(expById(VIZ.expId)); scheduleVizSave(); }; al.appendChild(ac); al.appendChild(el("span",null,"Auto contrast (per image)")); card.appendChild(al);
+  if(!s.auto){ card.appendChild(miniSlider("Black",0,mv,s.black,v=>{ s.black=v; if(s.black>=s.white)s.white=s.black+1; applyGlobalIntensityToShown(band,{auto:false,black:s.black,white:s.white}); renderViz(); scheduleVizSave(); })); card.appendChild(miniSlider("White",0,mv,s.white||mv,v=>{ s.white=v; if(s.white<=s.black)s.black=s.white-1; applyGlobalIntensityToShown(band,{auto:false,black:s.black,white:s.white}); renderViz(); scheduleVizSave(); })); }
+  card.appendChild(miniSlider("Gamma",0.3,3,s.gamma,v=>{ s.gamma=v; applyGlobalIntensityToShown(band,{gamma:v}); renderViz(); scheduleVizSave(); },true));
+  return card;
+}
+function hoverShowFile(f){ if(!f._row||!f._row.isConnected){ return; } f._row.scrollIntoView({block:"nearest"});
+  document.querySelectorAll("#vizGrid .cell-img.hl").forEach(c=>c.classList.remove("hl"));
+  f._row.querySelectorAll(".cell-img").forEach(c=>c.classList.add("hl"));
+  clearTimeout(hoverShowFile._t); hoverShowFile._t=setTimeout(()=>{ document.querySelectorAll("#vizGrid .cell-img.hl").forEach(c=>c.classList.remove("hl")); },1400); }
+
+function buildVizSidebar(exp){
+  syncGlobalColorToShown(); syncGlobalScaleToShown();   // reflect the shown group's shared colour + scale bar in the global controls
+  const side=$("vizSidebar"); side.innerHTML="";
+  // experiment picker
+  const s0=el("div","section"); s0.appendChild(el("div","title","Experiment"));
+  const cs=el("select"); LIB.categories.forEach(c=>{ if(!catExps(c.id).length)return; const o=el("option",null,c.name); o.value=c.id; cs.appendChild(o); });
+  const es=el("select"); es.style.marginTop="6px"; const fill=(cid)=>{ es.innerHTML=""; catExps(cid).forEach(e=>{ const o=el("option",null,e.name); o.value=e.id; es.appendChild(o); }); };
+  if(exp){ cs.value=exp.categoryId; fill(exp.categoryId); es.value=exp.id; }
+  cs.onchange=()=>{ fill(cs.value); if(es.value){ APP.selExpId=es.value; APP.scan=null; onEnterVizTab(); } };
+  es.onchange=()=>{ APP.selExpId=es.value; APP.scan=null; onEnterVizTab(); };
+  const f1=el("div","field"); f1.appendChild(el("label",null,"Category")); f1.appendChild(cs); s0.appendChild(f1);
+  const f2=el("div","field"); f2.appendChild(el("label",null,"Experiment")); f2.appendChild(es); s0.appendChild(f2);
+  s0.appendChild(selField("Channel sub-folder",[["__all__","All sub-folders"],...vizSubfolders().map(fl=>[fl, fl==="(root)"?"(root)":fl.split("/").pop()])],VIZ.subfolder,v=>{ VIZ.subfolder=v; refreshSelectionDefault(); buildVizSidebar(exp); renderViz(); decodeVizFiles(); }));
+  if(LIB.projects.length) s0.appendChild(selField("Project",[["__all__","All projects"],...LIB.projects.map(p=>[p.id,p.name])],VIZ.project,v=>{ VIZ.project=v; refreshSelectionDefault(); buildVizSidebar(exp); renderViz(); decodeVizFiles(); }));
+  const sf=el("div","field"); sf.appendChild(el("label",null,"Search filename")); const si=el("input"); si.type="text"; si.placeholder="e.g. CHIR"; si.value=VIZ.search; si.oninput=()=>{ VIZ.search=si.value; buildVizSidebar(exp); renderViz(); decodeVizFiles(); }; sf.appendChild(si); s0.appendChild(sf);
+  side.appendChild(s0);
+
+  // ---- Filters: magnification, image type, stitching, conditions ----
+  const onFil=()=>{ refreshSelectionDefault(); buildVizSidebar(exp); renderViz(); decodeVizFiles(); };
+  const sFil=secWrap("Filters");
+  const scope=vizScopeFiles();
+  const mags=vizScopeMags();
+  if(mags.length>1) sFil.appendChild(filterCheckList("Magnification", mags, VIZ.magSel, v=>scope.filter(f=>f.info.mag===v).length, onFil));
+  sFil.appendChild(selField("Image type",[["all","All"],["stack","Z-stacks only"],["projected","Single / projected only"]],VIZ.typeFilter,v=>{ VIZ.typeFilter=v; onFil(); }));
+  if(scope.some(f=>f.info.stitched)&&scope.some(f=>!f.info.stitched))
+    sFil.appendChild(selField("Stitching",[["all","All"],["single","Single field only"],["large","Large / stitched only"]],VIZ.stitchFilter,v=>{ VIZ.stitchFilter=v; onFil(); }));
+  const condCols=vizScopeCondCols(); const condColNames=Object.keys(condCols).sort();
+  condColNames.forEach(col=>{ const vals=[...condCols[col]].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    if(!VIZ.condSel[col]) VIZ.condSel[col]=new Set(vals);
+    sFil.appendChild(filterCheckList(col, vals, VIZ.condSel[col], v=>scope.filter(f=>fileConds(f).some(([c,x])=>c===col&&x===v)).length, onFil)); });
+  if(!mags.length&&!condColNames.length) sFil.appendChild(el("p","hint","No magnification/condition info to filter — set condition columns + values in the Organize tab."));
+  side.appendChild(sFil.section);
+
+  // file selection (#9)
+  const sFiles=secWrap("Files to show ("+vizShownFiles().length+"/"+vizCandidateFiles().length+")");
+  const bar=el("div","selbar"); const all=el("button","ghost","All"); all.onclick=()=>{ vizCandidateFiles().forEach(f=>VIZ.selected.add(f.path)); buildVizSidebar(exp); renderViz(); decodeVizFiles(); };
+  const none=el("button","ghost","None"); none.onclick=()=>{ vizCandidateFiles().forEach(f=>VIZ.selected.delete(f.path)); buildVizSidebar(exp); renderViz(); }; bar.appendChild(all); bar.appendChild(none); sFiles.appendChild(bar);
+  const list=el("div","file-list"); vizCandidateFiles().forEach(f=>{ const on=VIZ.selected.has(f.path); const lab=el("label",on?"on":""); const cb=el("input"); cb.type="checkbox"; cb.checked=on;
+    cb.onchange=()=>{ if(cb.checked)VIZ.selected.add(f.path); else VIZ.selected.delete(f.path); lab.classList.toggle("on",cb.checked); renderViz(); decodeVizFiles(); buildVizSidebar(exp); };
+    lab.title=f.name; lab.onmouseenter=()=>hoverShowFile(f);
+    lab.appendChild(cb); lab.appendChild(el("span","nm",f.name)); list.appendChild(lab); }); sFiles.appendChild(list);
+  side.appendChild(sFiles.section);
+
+  // Display (#15 hide singles, image size up to 1000)
+  const sd=secWrap("Display");
+  sd.appendChild(toggleRow("Show single-channel columns", VIZ.showSingles, v=>{ VIZ.showSingles=v; renderViz(); }));
+  sd.appendChild(toggleRow("Single channels in grayscale", VIZ.singleGray, v=>{ VIZ.singleGray=v; renderViz(); }));
+  const szf=el("div","field"); const lab=el("label"); lab.innerHTML='Image size <span style="float:right;color:var(--muted-2)">'+VIZ.imageSize+' px</span>'; const rg=el("input"); rg.type="range"; rg.min=140; rg.max=1000; rg.step=20; rg.value=VIZ.imageSize; rg.oninput=()=>{ VIZ.imageSize=+rg.value; lab.querySelector("span").textContent=VIZ.imageSize+" px"; renderViz(); }; szf.appendChild(lab); szf.appendChild(rg); sd.appendChild(szf);
+  side.appendChild(sd.section);
+
+  // Channels & LUTs — overall control for ALL images (#1)
+  const sgl=secWrap("Channels & LUTs — all images");
+  const activeB=vizActiveBands();
+  if(!activeB.length) sgl.appendChild(el("p","hint","No channels decoded yet."));
+  activeB.forEach(b=>sgl.appendChild(renderGlobalLutCard(b)));
+  if(activeB.length) sgl.appendChild(el("p","hint","Controls every image. Hover a single-channel image → ⚙ LUT to override just that one."));
+  side.appendChild(sgl.section);
+
+  // Save / lock adjustments onto the shown images
+  const sav=secWrap("Saved adjustments");
+  const sb=el("button","primary","💾 Save adjustments to shown images"); sb.style.width="100%"; sb.onclick=saveShownAdjustments; sav.appendChild(sb);
+  const rb=el("button",null,"Reset shown images to global"); rb.style.width="100%"; rb.style.marginTop="6px"; rb.onclick=resetShownAdjustments; sav.appendChild(rb);
+  sav.appendChild(el("p","hint","Locks the current LUTs, colours & scale bar onto the images shown now, so adjusting a different group later won’t change them. Auto-restored next time you open this experiment."));
+  side.appendChild(sav.section);
+
+  // Z-projection
+  const sz=secWrap("Z-projection");
+  sz.appendChild(selField("Mode",[["max","Maximum intensity (MaxIP)"],["focus","Focused (per-pixel EDF)"],["mean","Mean intensity"],["single","Single plane"]],VIZ.projection,v=>{ VIZ.projection=v; invalidateDecodes(); buildVizSidebar(exp); renderViz(); decodeVizFiles(); }));
+  if(VIZ.projection==="single"){ const maxZ=Math.max(1,...VIZ.files.map(f=>f.info.frames))-1; const zf=el("div","field"); const zl=el("label"); zl.innerHTML='Plane <span style="float:right;color:var(--muted-2)">Z '+(VIZ.zIndex+1)+'</span>'; const zr=el("input"); zr.type="range"; zr.min=0; zr.max=maxZ; zr.step=1; zr.value=VIZ.zIndex; zr.oninput=()=>{ VIZ.zIndex=+zr.value; zl.querySelector("span").textContent="Z "+(VIZ.zIndex+1); }; zr.onchange=()=>{ invalidateDecodes(); decodeVizFiles(); }; zf.appendChild(zl); zf.appendChild(zr); sz.appendChild(zf); }
+  sz.appendChild(el("p","hint","Only applies to true z-stacks. Files already processed to a single plane (Focused / single) are shown as-is — never re-projected."));
+  side.appendChild(sz.section);
+
+  // Denoise
+  const sn=secWrap("Denoise");
+  sn.appendChild(selField("Method",[["none","Off"],["gaussian","Gaussian (smooth)"],["median","Median (despeckle)"],["aniso","Anisotropic diffusion (edge-preserving)"],["tv","Total variation (edge-preserving)"]],VIZ.denoise.method,v=>{ VIZ.denoise.method=v; invalidateDecodes(); buildVizSidebar(exp); decodeVizFiles(); }));
+  if(VIZ.denoise.method!=="none"){ const df=el("div","field"); const dl=el("label"); dl.innerHTML='Strength <span style="float:right;color:var(--muted-2)">'+VIZ.denoise.strength.toFixed(1)+'</span>'; const dr=el("input"); dr.type="range"; dr.min=0.5; dr.max=3; dr.step=0.5; dr.value=VIZ.denoise.strength; dr.oninput=()=>{ VIZ.denoise.strength=+dr.value; dl.querySelector("span").textContent=VIZ.denoise.strength.toFixed(1); }; dr.onchange=()=>{ invalidateDecodes(); decodeVizFiles(); }; df.appendChild(dl); df.appendChild(dr); sn.appendChild(df); }
+  sn.appendChild(el("p","hint","Applied per z-section before stacking. Files already denoised (NIS) are skipped automatically. Anisotropic/TV are edge-preserving. NIA/Denoise.ai are trained CNNs — run those in Fiji/NIS."));
+  side.appendChild(sn.section);
+
+  // Scale bar
+  const ss=secWrap("Scale bar");
+  ss.appendChild(selField("Length",[["0","Off"],["10","10 µm"],["20","20 µm"],["50","50 µm"],["100","100 µm"],["200","200 µm"],["500","500 µm"]],String(VIZ.scaleBarUm),v=>{ VIZ.scaleBarUm=+v; applyGlobalScaleToShown(+v); renderViz(); scheduleVizSave(); }));
+  ss.appendChild(selField("Color",[["white","White"],["black","Black"]],VIZ.scaleBarColor,v=>{ VIZ.scaleBarColor=v; renderViz(); scheduleVizSave(); }));
+  ss.appendChild(toggleRow("Show number",VIZ.scaleBarLabel,v=>{ VIZ.scaleBarLabel=v; renderViz(); scheduleVizSave(); }));
+  ss.appendChild(el("p","hint","Computed from each ND2’s own µm/px calibration."));
+  side.appendChild(ss.section);
+
+  // Export
+  const se=secWrap("Export");
+  se.appendChild(selField("Format",[["png","PNG"],["tiff","TIFF"]],VIZ.exportFormat,v=>VIZ.exportFormat=v));
+  se.appendChild(selField("Background",[["transparent","Transparent"],["theme","Match current theme ("+(currentTheme()==="dark"?"dark":"light")+")"]],VIZ.exportBg,v=>{VIZ.exportBg=v; scheduleVizSave();}));
+  se.appendChild(selField("Resolution",[["1","1×"],["2","2×"],["3","3×"]],String(VIZ.pngScale),v=>VIZ.pngScale=+v));
+  const eb=el("button","primary","Save comparison panel…"); eb.style.width="100%"; eb.style.marginTop="6px"; eb.onclick=exportGridPng; se.appendChild(eb);
+  se.appendChild(el("p","hint","Hover an image for ⤓ to save that overlap or single channel; each row has “⤓ export file”. Each save type (panel / file / single image) remembers its own last folder."));
+  side.appendChild(se.section);
+}
+function refreshSelectionDefault(){ // when filter changes, select all candidates by default
+  VIZ.selected=new Set(vizCandidateFiles().map(f=>f.path)); }
+
+// ---- render comparison grid ----
+function renderViz(){
+  if(VIZ.expId&&VIZ.files.length) scheduleVizSave();
+  const grid=$("vizGrid"), empty=$("vizEmpty");
+  const files=vizShownFiles(); const bands=vizActiveBands();
+  $("vizSummary").textContent=`${files.length} file${files.length===1?"":"s"} · ${bands.length} channel${bands.length===1?"":"s"} (${bands.map(b=>chanNameForBand(b)+" ("+b+")").join(", ")||"none"}) · ${VIZ.projection==="single"?("Z "+(VIZ.zIndex+1)):VIZ.projection.toUpperCase()}`;
+  grid.innerHTML="";
+  if(!files.length){ grid.style.display="none"; empty.style.display="block"; empty.textContent=vizCandidateFiles().length?"No files selected — tick files in the sidebar.":"No images match the current filters."; return; }
+  grid.style.display="block"; empty.style.display="none";
+  // ---- per-column show/hide chip bar (#3) — hides columns WITHOUT changing the overlap ----
+  const colBar=el("div"); colBar.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 12px;font-size:12px;";
+  const cl=el("span","meta","Show columns:"); cl.style.marginRight="2px"; colBar.appendChild(cl);
+  vizColumnKeys().forEach(k=>{ const hidden=VIZ.colHidden.has(k); const chip=el("span");
+    chip.style.cssText="cursor:pointer;user-select:none;padding:3px 10px;border-radius:999px;border:1px solid "+(hidden?"var(--border-strong)":"var(--accent-soft-strong)")+";"+(hidden?"opacity:.5;color:var(--muted);":"background:var(--accent-soft);color:var(--text);");
+    if(k!=="overlap"){ const dot=el("span"); dot.style.cssText="display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle;background:"+rgbCss(chanColorForBand(k)); chip.appendChild(dot); }
+    chip.appendChild(el("span",null, k==="overlap"?"Overlap":(chanNameForBand(k)+" ("+k+")")));
+    chip.title="Show/hide this column (the overlap image is not affected)";
+    chip.onclick=()=>{ if(VIZ.colHidden.has(k)) VIZ.colHidden.delete(k); else VIZ.colHidden.add(k); renderViz(); scheduleVizSave(); };
+    colBar.appendChild(chip); });
+  grid.appendChild(colBar);
+  // ---- comparison table ----
+  const cols=vizColumns();
+  const table=el("table","cmp-table"); const thead=el("thead"); const hr=el("tr"); hr.appendChild(el("th",null,""));
+  cols.forEach(c=>{ const th=el("th"); th.draggable=true; th.dataset.key=String(c.key); th.style.cursor="grab"; th.title="Drag to reorder columns";
+    if(c.mode==="single"){ const dot=el("span","dot"); dot.style.background=rgbCss(chanColorForBand(c.band)); th.appendChild(dot); th.appendChild(el("span",null,chanNameForBand(c.band)+" ("+c.band+")")); }
+    else th.appendChild(el("span",null,"Overlap"));
+    th.ondragstart=(e)=>{ e.dataTransfer.setData("text/plain",String(c.key)); e.dataTransfer.effectAllowed="move"; th.style.opacity=".4"; };
+    th.ondragend=()=>{ th.style.opacity=""; };
+    th.ondragover=(e)=>{ e.preventDefault(); th.style.boxShadow="inset 4px 0 0 var(--accent)"; };
+    th.ondragleave=()=>{ th.style.boxShadow=""; };
+    th.ondrop=(e)=>{ e.preventDefault(); th.style.boxShadow=""; const dk=e.dataTransfer.getData("text/plain"); if(dk) moveCol(dk,String(c.key)); };
+    hr.appendChild(th); });
+  thead.appendChild(hr); table.appendChild(thead);
+  const tbody=el("tbody"); files.forEach(f=>{ const tr=renderFileRow(f,cols); f._row=tr; tbody.appendChild(tr); });
+  table.appendChild(tbody); grid.appendChild(table);
+}
+function renderFileRow(f,cols){
+  const tr=el("tr"); f._cells=[];
+  const lab=el("td","rowlabel"); const t=el("div","rl-title", vizTitle(f)); lab.appendChild(t);
+  lab.appendChild(el("div","rl-file", f.name));
+  const proj=subProject(f); lab.appendChild(el("div","rl-meta", (f.info.focused?"Focused":f.info.zstack?("Z"+f.info.frames):"single")+(f.denoised?" · Denoised":"")+(f.info.stitched?(" · Large "+fovStr(f.info)):"")+(f.info.mag?(" · "+f.info.mag):"")+(proj?(" · "+proj):"")));
+  // per-row scale-bar override (#8)
+  const sbRow=el("div"); sbRow.style.cssText="margin-top:6px;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:4px;";
+  sbRow.appendChild(el("span",null,"Scale bar:")); const sb=el("select"); sb.style.cssText="width:auto;font-size:11px;padding:2px 4px;";
+  [["","default ("+(VIZ.scaleBarUm?VIZ.scaleBarUm+" µm":"off")+")"],["0","off"],["10","10 µm"],["20","20 µm"],["50","50 µm"],["100","100 µm"],["200","200 µm"],["500","500 µm"]].forEach(([v,t])=>{ const o=el("option",null,t); o.value=v; sb.appendChild(o); });
+  sb.value=f.scaleBarUm==null?"":String(f.scaleBarUm); sb.onchange=()=>{ f.scaleBarUm=sb.value===""?null:+sb.value; rerenderFileRow(f); }; sbRow.appendChild(sb); lab.appendChild(sbRow);
+  const exb=el("button","ghost","⤓ export file"); exb.style.marginTop="6px"; exb.onclick=()=>exportFileStrip(f,cols.filter(c=>c.mode==="single").map(c=>c.band)); lab.appendChild(exb);
+  tr.appendChild(lab);
+  cols.forEach(c=>tr.appendChild(makeCell(f,c.mode,c.band)));
+  return tr;
+}
+function makeCell(f,mode,band){
+  const td=el("td"); const W=VIZ.imageSize;
+  if(mode==="single"&&!f.bandsPresent.includes(band)){ const box=el("div","cell-img"); box.style.width=W+"px"; box.style.height=Math.round(W*(f.info.H/f.info.W))+"px"; box.appendChild(el("div","empty-cell","—")); td.appendChild(box); return td; }
+  const box=el("div","cell-img"); box.style.width=W+"px";
+  if(!f.dec){ box.style.height=Math.round(W*(f.info.H/f.info.W))+"px"; box.appendChild(el("div","empty-cell", f.decErr?"error":"decoding…")); td.appendChild(box); return td; }
+  const dec=f.dec; const cv=decToCanvas(dec,effLutMap(f),mode,band,VIZ.singleGray); cv.style.width=W+"px"; cv.style.height=Math.round(W*dec.workH/dec.workW)+"px";
+  box.appendChild(cv);
+  f._cells.push({mode,band,canvas:cv,box});
+  // adjusted pill — this band has a per-image override
+  if(mode==="single" && f.lut[band] && f.lut[band].override){ box.classList.add("adj"); box.appendChild(el("div","cell-adjpill","LUT")); }
+  // tools
+  const tools=el("div","cell-tools");
+  if(mode==="single"){ const gear=el("button",null,"⚙ LUT"); gear.onclick=(e)=>{ e.stopPropagation(); openLutEditor(f,band,gear); }; tools.appendChild(gear); }
+  const dl=el("button",null,"⤓"); dl.title="Export this image"; dl.onclick=(e)=>{ e.stopPropagation(); exportCell(f,mode,band); }; tools.appendChild(dl);
+  box.appendChild(tools);
+  addScaleBar(box,dec,W,effScaleUm(f));
+  cv.onclick=()=>openLightbox(f,mode,band);
+  td.appendChild(box);
+  return td;
+}
+function rerenderFileRow(f){ if(!f._row)return; const nr=renderFileRow(f,vizColumns()); f._row.replaceWith(nr); f._row=nr; scheduleVizSave(); }
+function addScaleBar(box,dec,dispW,um){ um=(um!=null)?um:VIZ.scaleBarUm; if(!um||!dec.calibUm)return; const fov=dec.calibUm*dec.fullW; const frac=um/fov; if(frac<=0||frac>1.5)return;
+  const barW=Math.max(6,Math.round(frac*dispW)); const barH=Math.max(3,Math.round(dispW*0.012));
+  if(VIZ.scaleBarLabel){ const lab=el("div","scale-label color-"+VIZ.scaleBarColor, um+" µm"); lab.style.bottom=(barH+8)+"px"; lab.style.fontSize=Math.max(10,Math.round(dispW*0.032))+"px"; box.appendChild(lab); }
+  const bar=el("div","scale-bar color-"+VIZ.scaleBarColor); bar.style.width=barW+"px"; bar.style.height=barH+"px"; box.appendChild(bar); }
+
+// ---- NIS-style LUT editor (per file, per band) ----
+const LE={f:null,band:null};
+// Shared NIS-style LUT editor. target() returns the settings object being edited
+// (a per-file override, or the global control). For per-file it lazily creates an override.
+function openLutEditor(f,band,anchor){
+  const ed=$("lutEditor"); LE.f=f; LE.band=band; const bd=f.dec.bands[band]; const maxVal=f.dec.maxVal;
+  const ensure=()=>{ if(!(f.lut[band]&&f.lut[band].override)){ const base=effLut(f,band); f.lut[band]=Object.assign({},base,{override:true,color:base.color.slice()}); } return f.lut[band]; };
+  const cur=()=>effLut(f,band);   // effective settings for display (override or global)
+  ed.innerHTML="";
+  const head=el("div","le-head"); const sw=el("div","le-sw"); head.appendChild(sw);
+  head.appendChild(el("span","le-title", chanName(f,band)+" ("+band+") — "+(f.meta.subject?slug(f.meta.subject):f.name)));
+  const cl=el("button","le-close","✕"); cl.onclick=closeLutEditor; head.appendChild(cl); ed.appendChild(head);
+  const ovNote=el("div"); ovNote.style.cssText="font-size:10.5px;color:var(--muted-2);margin-bottom:6px;"; ed.appendChild(ovNote);
+  const hist=el("canvas","le-hist"); hist.width=224; hist.height=80; ed.appendChild(hist);
+  const rB=el("div","le-row"); rB.appendChild(el("label",null,"Black")); const ib=el("input"); ib.type="number"; ib.min=0; ib.max=maxVal; rB.appendChild(ib); ed.appendChild(rB);
+  const rW=el("div","le-row"); rW.appendChild(el("label",null,"White")); const iw=el("input"); iw.type="number"; iw.min=0; iw.max=maxVal; rW.appendChild(iw); ed.appendChild(rW);
+  const rG=el("div","le-row"); rG.appendChild(el("label",null,"Gamma")); const ig=el("input"); ig.type="range"; ig.min=0.3; ig.max=3; ig.step=0.05; const gv=el("span","le-gval"); rG.appendChild(ig); rG.appendChild(gv); ed.appendChild(rG);
+  const colors=el("div","le-colors"); const swEls=[]; LUT_PALETTE.forEach(([nm,c])=>{ const e2=el("div","c"); e2.style.background=rgbCss(c); e2.title=nm; e2._c=c; e2.onclick=()=>{ ensure().color=c.slice(); apply(); }; colors.appendChild(e2); swEls.push(e2); }); ed.appendChild(colors);
+  const acts=el("div","le-actions"); const autoL=el("label"); const ac=el("input"); ac.type="checkbox"; autoL.appendChild(ac); autoL.appendChild(el("span",null,"Auto")); acts.appendChild(autoL);
+  const gbtn=el("button",null,"Use global"); acts.appendChild(gbtn); ed.appendChild(acts);
+
+  function syncInputs(){ const s=cur(); sw.style.background=rgbCss(s.color); const bw={black:s.auto?bd.lo:s.black,white:s.auto?bd.hi:s.white};
+    ib.value=Math.round(bw.black); iw.value=Math.round(bw.white); ig.value=s.gamma; gv.textContent=(+s.gamma).toFixed(2); ac.checked=s.auto;
+    swEls.forEach(e2=>e2.classList.toggle("sel", e2._c[0]===s.color[0]&&e2._c[1]===s.color[1]&&e2._c[2]===s.color[2]));
+    const overriding=f.lut[band]&&f.lut[band].override; ovNote.textContent=overriding?"Overriding the global setting for this image.":"Following the global channel setting."; gbtn.style.display=overriding?"":"none"; }
+  function drawHist(){ const s=cur(); const ctx=hist.getContext("2d"); const w=hist.width,h=hist.height; ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=getComputedStyle(document.body).getPropertyValue("--panel-2")||"#15181f"; ctx.fillRect(0,0,w,h);
+    const H=bd.hist; let mx=1; for(let i=1;i<H.length;i++) if(H[i]>mx)mx=H[i]; const lg=Math.log(mx+1);
+    ctx.fillStyle="rgba(120,140,170,.6)"; for(let x=0;x<w;x++){ const bi=Math.min(H.length-1,(x/w*H.length)|0); const v=Math.log(H[bi]+1)/lg; const bh=v*(h-2); ctx.fillRect(x,h-bh,1,bh); }
+    const black=s.auto?bd.lo:s.black, white=s.auto?bd.hi:s.white; const bx=black/maxVal*w, wx=white/maxVal*w;
+    ctx.strokeStyle=rgbCss(s.color); ctx.lineWidth=1.5; ctx.beginPath();
+    for(let px=0;px<=w;px++){ let t=(px-bx)/Math.max(1,(wx-bx)); t=t<0?0:(t>1?1:t); const y=h-Math.pow(t,1/(s.gamma||1))*(h-2); if(px===0)ctx.moveTo(px,y); else ctx.lineTo(px,y); } ctx.stroke();
+    ctx.fillStyle="#222"; ctx.fillRect(bx-2,0,4,h); ctx.fillStyle="#eee"; ctx.fillRect(wx-2,0,4,h); }
+  let drag=null;
+  hist.onpointerdown=(e)=>{ const s=ensure(); if(s.auto){ s.auto=false; s.black=Math.round(bd.lo); s.white=Math.round(bd.hi); } const r=hist.getBoundingClientRect(); const x=(e.clientX-r.left)/r.width*maxVal; drag=(Math.abs(x-s.black)<Math.abs(x-s.white))?"b":"w"; hist.setPointerCapture(e.pointerId); moveDrag(e); };
+  hist.onpointermove=(e)=>{ if(drag) moveDrag(e); };
+  hist.onpointerup=()=>{ drag=null; };
+  function moveDrag(e){ const s=ensure(); const r=hist.getBoundingClientRect(); let x=clamp((e.clientX-r.left)/r.width,0,1)*maxVal; if(drag==="b") s.black=Math.min(x,s.white-1); else s.white=Math.max(x,s.black+1); apply(); }
+  ib.oninput=()=>{ const s=ensure(); s.auto=false; s.black=clamp(+ib.value,0,maxVal); apply(); };
+  iw.oninput=()=>{ const s=ensure(); s.auto=false; s.white=clamp(+iw.value,0,maxVal); apply(); };
+  ig.oninput=()=>{ const s=ensure(); s.gamma=+ig.value; apply(); };
+  ac.onchange=()=>{ const s=ensure(); s.auto=ac.checked; if(!s.auto){ s.black=Math.round(bd.lo); s.white=Math.round(bd.hi); } apply(); };
+  gbtn.onclick=()=>{ f.lut[band]=null; apply(); };
+  function apply(){ rerenderFileRow(f); syncInputs(); drawHist(); }
+  syncInputs(); drawHist(); ed.hidden=false;
+  const r=anchor.getBoundingClientRect(); const ew=248, eh=ed.offsetHeight||320;
+  let left=clamp(r.left,8,window.innerWidth-ew-8); let top=r.bottom+6; if(top+eh>window.innerHeight-8) top=Math.max(8,r.top-eh-6);
+  ed.style.left=left+"px"; ed.style.top=top+"px";
+}
+function closeLutEditor(){ $("lutEditor").hidden=true; LE.f=null; }
+document.addEventListener("mousedown",(e)=>{ const ed=$("lutEditor"); if(ed.hidden)return; if(ed.contains(e.target))return; if(e.target.closest&&e.target.closest(".cell-tools"))return; closeLutEditor(); });
+
+// ---- lightbox + exports ----
+function cellCaption(f,mode,band){ const what=mode==="overlap"?"Overlap":(chanName(f,band)+" ("+band+")"); return `${f.name} — ${what} · ${f.info.W}×${f.info.H} · ${f.dec.projUsed.toUpperCase()}${f.info.calibUm?(" · "+f.info.calibUm.toFixed(4)+" µm/px"):""}`; }
+let LB={f:null,mode:null,band:null};
+function openLightbox(f,mode,band){ if(!f.dec)return; LB={f,mode,band}; const cv=$("lightboxCanvas"); const src=decToCanvas(f.dec,effLutMap(f),mode,band,VIZ.singleGray); cv.width=src.width; cv.height=src.height; cv.getContext("2d").drawImage(src,0,0);
+  $("lightboxCaption").textContent=cellCaption(f,mode,band); $("lightbox").classList.add("open"); }
+function fnameFor(f,mode,band){ const base=vizTitleSlug(f); const what=mode==="overlap"?"Overlap":(slug(chanName(f,band))+"_"+band); return `${base}_${what}_${f.dec.projUsed}.png`.replace(/[\\/:*?"<>|]/g,"-"); }
+// Minimal baseline 8-bit RGBA uncompressed TIFF encoder (alpha = transparent background, #3).
+function encodeTIFF(canvas){ const w=canvas.width,h=canvas.height; const img=canvas.getContext("2d").getImageData(0,0,w,h).data;
+  const nTags=10, headerLen=8, ifdLen=2+nTags*12+4, bpsOff=headerLen+ifdLen, bpsLen=8; let dataOff=bpsOff+bpsLen; if(dataOff%2)dataOff++; const dataLen=w*h*4;
+  const buf=new ArrayBuffer(dataOff+dataLen), dv=new DataView(buf);
+  dv.setUint16(0,0x4949,true); dv.setUint16(2,42,true); dv.setUint32(4,headerLen,true);
+  let p=headerLen; dv.setUint16(p,nTags,true); p+=2;
+  const tag=(id,type,count,val)=>{ dv.setUint16(p,id,true); dv.setUint16(p+2,type,true); dv.setUint32(p+4,count,true); dv.setUint32(p+8,val,true); p+=12; };
+  tag(256,4,1,w); tag(257,4,1,h); tag(258,3,4,bpsOff); tag(259,3,1,1); tag(262,3,1,2); tag(273,4,1,dataOff); tag(277,3,1,4); tag(278,4,1,h); tag(279,4,1,dataLen); tag(338,3,1,2); /* ExtraSamples = unassociated alpha */
+  dv.setUint32(p,0,true);
+  dv.setUint16(bpsOff,8,true); dv.setUint16(bpsOff+2,8,true); dv.setUint16(bpsOff+4,8,true); dv.setUint16(bpsOff+6,8,true);
+  new Uint8Array(buf,dataOff,dataLen).set(img);
+  return new Blob([buf],{type:"image/tiff"}); }
+// Remembered save folders, one per destType ("panel"|"file"|"cell"), persisted in IndexedDB.
+let SAVE_DEST={};
+async function loadSaveDest(){ try{ SAVE_DEST=(await kvGet("savedest"))||{}; }catch(e){ SAVE_DEST={}; } }
+async function saveImage(canvas,baseName,destType){
+  const fmt=VIZ.exportFormat||"png"; const ext=fmt==="tiff"?"tif":"png";
+  const suggested=baseName.replace(/\.(png|tif|tiff)$/i,"")+"."+ext;
+  // Open the picker FIRST (while the click gesture is live), THEN encode — awaiting
+  // toBlob before the picker drops the gesture and the dialog silently fails.
+  // startIn = the folder used last time for THIS export type (#1); first time falls
+  // back to the experiment folder so it never lands in Documents.
+  let handle=null;
+  if(window.showSaveFilePicker){
+    const opts={ suggestedName:suggested, id:"nd2save-"+destType,
+      types:[ fmt==="tiff"?{description:"TIFF image",accept:{"image/tiff":[".tif",".tiff"]}}:{description:"PNG image",accept:{"image/png":[".png"]}} ] };
+    const start=SAVE_DEST[destType]||((expById(VIZ.expId)||{}).handle); if(start) opts.startIn=start;
+    try{ handle=await window.showSaveFilePicker(opts); }
+    catch(e){ if(e&&e.name==="AbortError") return;
+      if(SAVE_DEST[destType]){ delete SAVE_DEST[destType]; kvSet("savedest",SAVE_DEST).catch(()=>{}); }  // stored folder went stale — self-heal
+      handle=null; }
+  }
+  const blob = fmt==="tiff" ? encodeTIFF(canvas) : await new Promise(r=>canvas.toBlob(r,"image/png"));
+  if(!blob){ toast("Encoding failed.","err"); return; }
+  if(handle){ try{ const w=await handle.createWritable(); await w.write(blob); await w.close(); SAVE_DEST[destType]=handle; kvSet("savedest",SAVE_DEST).catch(()=>{}); toast("Saved "+ext.toUpperCase()+"."); return; }catch(e){ console.error(e); toast("Save failed: "+e.message,"err"); return; } }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=suggested; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000); toast("Saved to Downloads."); }
+function renderCellWithBar(f,mode,band,scale){ scale=scale||VIZ.pngScale||1; const dec=f.dec; const W=dec.workW*scale, H=dec.workH*scale; const um=effScaleUm(f);
+  const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const ctx=cv.getContext("2d"); ctx.imageSmoothingQuality="high";
+  const src=decToCanvas(dec,effLutMap(f),mode,band,VIZ.singleGray); ctx.drawImage(src,0,0,W,H);
+  if(um&&dec.calibUm){ const fov=dec.calibUm*dec.fullW; const frac=um/fov; if(frac>0&&frac<1.5){ const bw=Math.max(6,frac*W), bh=Math.max(3,W*0.012), bx=W-W*0.03-bw, by=H-W*0.03-bh;
+    if(VIZ.scaleBarColor==="black"){ ctx.fillStyle="rgba(255,255,255,.7)"; ctx.fillRect(bx-2,by-2,bw+4,bh+4); ctx.fillStyle="#000"; } else { ctx.fillStyle="rgba(0,0,0,.5)"; ctx.fillRect(bx-2,by-2,bw+4,bh+4); ctx.fillStyle="#fff"; }
+    ctx.fillRect(bx,by,bw,bh);
+    if(VIZ.scaleBarLabel){ ctx.font="700 "+Math.round(W*0.032)+"px -apple-system,sans-serif"; ctx.textAlign="right"; ctx.textBaseline="alphabetic"; ctx.fillStyle=VIZ.scaleBarColor==="black"?"#000":"#fff"; ctx.fillText(um+" µm", W-W*0.03, by-bh); ctx.textAlign="left"; ctx.textBaseline="top"; } } }
+  return cv; }
+function exportCell(f,mode,band){ if(!f.dec)return; saveImage(renderCellWithBar(f,mode,band), fnameFor(f,mode,band), "cell"); }
+async function exportFileStrip(f,bands){ if(!f.dec){ toast("Still decoding…","warn"); return; }
+  // mirror the displayed columns (reorder + hide), drop ones this file lacks; images only, no text (#4)
+  const cols=vizColumns().filter(c=>c.mode==="overlap"||f.bandsPresent.includes(c.band)); if(!cols.length) return;
+  const scale=VIZ.pngScale||1; const cw=f.dec.workW*scale, ch=f.dec.workH*scale, gap=8*scale;
+  const W=cols.length*cw+(cols.length-1)*gap, H=ch;
+  const cv=document.createElement("canvas"); cv.width=W; cv.height=H; const ctx=cv.getContext("2d");
+  if(VIZ.exportBg==="theme"){ ctx.fillStyle=currentTheme()==="dark"?"#1b1e24":"#fafbfd"; ctx.fillRect(0,0,W,H); }   // else transparent (#3, #A)
+  let x=0; cols.forEach(c=>{ const cell=renderCellWithBar(f,c.mode,c.band,scale); ctx.drawImage(cell,x,0); x+=cw+gap; });
+  saveImage(cv, vizTitleSlug(f)+"_panel", "file");
+}
+function wrapText(ctx,text,font,maxW){ ctx.font=font; const words=String(text).split(/(\s+)/); const lines=[]; let cur="";
+  for(const w of words){ const t=cur+w; if(ctx.measureText(t).width>maxW && cur.trim()){ lines.push(cur.trim()); cur=w.replace(/^\s+/,""); } else cur=t; }
+  if(cur.trim()) lines.push(cur.trim());
+  const out=[]; for(const ln of lines){ if(ctx.measureText(ln).width<=maxW){ out.push(ln); continue; } let s=""; for(const ch of ln){ if(ctx.measureText(s+ch).width>maxW && s){ out.push(s); s=ch; } else s+=ch; } if(s) out.push(s); }
+  return out.length?out:[""]; }
+async function exportGridPng(){ const files=vizShownFiles(); const bands=vizActiveBands();
+  if(!files.length){ toast("Nothing to export.","warn"); return; } if(files.some(f=>!f.dec)){ toast("Still decoding — try again shortly.","warn"); return; }
+  syncGlobalColorToShown();
+  const scale=VIZ.pngScale||1; const cw=VIZ.imageSize; const cols=vizColumns().map(c=>({mode:c.mode,band:c.band}));
+  if(!cols.length){ toast("All columns are hidden — show at least one.","warn"); return; }
+  const rowH=files.map(f=>Math.round(cw*f.dec.workH/f.dec.workW)); const pad=18,gap=8,headerH=30,rowGap=12;
+  const exp=expById(VIZ.expId);
+  const TITLEF="700 14px -apple-system,sans-serif", FILEF="12px -apple-system,sans-serif", METAF="11px -apple-system,sans-serif";
+  const labelOf=(f)=>({ title:vizTitle(f), file:f.name, meta:(f.info.focused?"Focused":f.info.zstack?("Z-stack "+f.info.frames):"single plane")+(f.denoised?" · Denoised":"")+(f.info.stitched?(" · Large "+fovStr(f.info)):"")+(f.info.mag?(" · "+f.info.mag):"")+(subProject(f)?(" · "+subProject(f)):"") });
+  // size the label column to the longest line so NOTHING is truncated (#3), capped then wrapped
+  const meas=document.createElement("canvas").getContext("2d"); let maxW=150;
+  files.forEach(f=>{ const L=labelOf(f); meas.font=TITLEF; maxW=Math.max(maxW,meas.measureText(L.title).width); meas.font=FILEF; maxW=Math.max(maxW,meas.measureText(L.file).width); meas.font=METAF; maxW=Math.max(maxW,meas.measureText(L.meta).width); });
+  const labelW=Math.round(clamp(maxW+18,180,560)), labelInner=labelW-14;
+  const lh1=17,lh2=15,lh3=14;
+  const wrapped=files.map(f=>{ const L=labelOf(f); return { t:wrapText(meas,L.title,TITLEF,labelInner), fn:wrapText(meas,L.file,FILEF,labelInner), m:wrapText(meas,L.meta,METAF,labelInner) }; });
+  const blockH=wrapped.map(w=>w.t.length*lh1+4+w.fn.length*lh2+w.m.length*lh3);
+  const rowSpace=files.map((f,i)=>Math.max(rowH[i],blockH[i]));
+  const gridH=rowSpace.reduce((s,h)=>s+h+rowGap,0);
+  const W=pad*2+labelW+cols.length*(cw+gap), H=pad*2+headerH+gridH+10;
+  const cv=document.createElement("canvas"); cv.width=W*scale; cv.height=H*scale; const ctx=cv.getContext("2d"); ctx.scale(scale,scale); ctx.imageSmoothingQuality="high";
+  // background: transparent (#3) OR match the current theme (#A); comparison keeps text labels (#4)
+  const pal=currentTheme()==="dark"?{t:"#e7eaf2",m:"#99a3b7",bg:"#1b1e24"}:{t:"#1c2333",m:"#67718a",bg:"#fafbfd"};
+  if(VIZ.exportBg==="theme"){ ctx.fillStyle=pal.bg; ctx.fillRect(0,0,W,H); }
+  ctx.fillStyle=pal.t; ctx.font="700 16px -apple-system,sans-serif"; ctx.textBaseline="top"; ctx.fillText((exp?exp.name:"")+(VIZ.subfolder!=="__all__"?("  ·  "+VIZ.subfolder.split("/").pop()):""), pad, pad-2);
+  // column headers — dot uses the SELECTED global colour (#2)
+  let hx=pad+labelW; const hy=pad+16;
+  cols.forEach(c=>{ ctx.font="700 13px -apple-system,sans-serif"; const lbl=c.mode==="overlap"?"Overlap":(chanNameForBand(c.band)+" ("+c.band+")"); if(c.band!=null){ ctx.fillStyle=rgbCss(chanColorForBand(c.band)); ctx.fillRect(hx,hy+2,11,11); } ctx.fillStyle=pal.t; ctx.fillText(lbl, hx+(c.band!=null?16:0), hy); hx+=cw+gap; });
+  let ry=pad+headerH+6;
+  files.forEach((f,ri)=>{ const rh=rowH[ri], rs=rowSpace[ri], w=wrapped[ri];
+    let ly=ry+Math.max(0,(rs-blockH[ri])/2); ctx.textBaseline="top";
+    ctx.fillStyle=pal.t; ctx.font=TITLEF; w.t.forEach(t=>{ ctx.fillText(t,pad,ly); ly+=lh1; }); ly+=4;
+    ctx.fillStyle=pal.m; ctx.font=FILEF; w.fn.forEach(t=>{ ctx.fillText(t,pad,ly); ly+=lh2; });
+    ctx.font=METAF; w.m.forEach(t=>{ ctx.fillText(t,pad,ly); ly+=lh3; });
+    const iy=ry+Math.max(0,(rs-rh)/2);
+    let cx=pad+labelW; cols.forEach(c=>{ if(c.mode==="single"&&!f.bandsPresent.includes(c.band)){ cx+=cw+gap; return; } const cell=renderCellWithBar(f,c.mode,c.band,1); ctx.drawImage(cell,cx,iy,cw,rh); cx+=cw+gap; });
+    ry+=rs+rowGap; });
+  saveImage(cv, `${exp?exp.name:"compare"}_${VIZ.projection}`.replace(/[\\/:*?"<>|]/g,"-"), "panel");
+}
+
+// ----- boot -----
+function initVizResizer(){ const handle=$("vizResize"); if(!handle)return; try{ const L=localStorage.getItem("nd2viz-viz-left"); if(L) $("vizView").style.setProperty("--viz-left",L+"px"); }catch(e){}
+  handle.addEventListener("mousedown",(e)=>{ e.preventDefault(); const view=$("vizView"); const sx=e.clientX; const cur=parseFloat(getComputedStyle(view).gridTemplateColumns.split(" ")[0])||310; handle.classList.add("dragging"); document.body.classList.add("col-resizing");
+    const mv=(ev)=>view.style.setProperty("--viz-left",clamp(cur+(ev.clientX-sx),220,680)+"px");
+    const up=()=>{ document.removeEventListener("mousemove",mv,true); document.removeEventListener("mouseup",up,true); handle.classList.remove("dragging"); document.body.classList.remove("col-resizing"); try{ localStorage.setItem("nd2viz-viz-left", parseFloat(getComputedStyle(view).gridTemplateColumns.split(" ")[0])); }catch(e){} };
+    document.addEventListener("mousemove",mv,true); document.addEventListener("mouseup",up,true); }); }
+async function boot(){
+  initTheme(); initMetaResizers(); initVizResizer();
+  document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>switchTab(b.dataset.tab));
+  $("lightbox").onclick=(e)=>{ if(e.target===$("lightbox")) $("lightbox").classList.remove("open"); };
+  $("lbClose").onclick=()=>$("lightbox").classList.remove("open");
+  $("lbDownload").onclick=()=>{ if(LB.f) exportCell(LB.f,LB.mode,LB.band); };
+  document.addEventListener("keydown",e=>{ if(e.key==="Escape"){ $("lightbox").classList.remove("open"); closeLutEditor(); } });
+  if(!FS_OK){ $("libView").innerHTML='<div class="unsupported"><h2>Chrome or Edge required</h2><p>This tool uses the File System Access API. Please open it in <b>Google Chrome</b> or <b>Microsoft Edge</b>.</p></div>'; document.querySelectorAll('.tab[data-tab="meta"],.tab[data-tab="viz"]').forEach(b=>b.disabled=true); return; }
+  await loadLibrary(); await loadSaveDest();
+  renderLibrary(); switchTab("lib");
+  armLibraryAutoGrant();   // load the remembered library on the first click/keypress (permission needs a user gesture)
+}
+boot();
+</script>
+</body>
+</html>
