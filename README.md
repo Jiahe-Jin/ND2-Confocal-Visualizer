@@ -4,6 +4,8 @@ A **single self-contained HTML file** for organizing, renaming, and visualizing 
 
 Built for fluorescent confocal microscopy (Nikon A1 / Ti2) and reads the `.nd2` format directly in pure JavaScript — no Fiji, NIS-Elements, or Python required just to look at your images.
 
+This tool was developed collaboratively with [Claude Code](https://claude.com/claude-code), Anthropic's AI coding assistant.
+
 > ⚠️ **Chrome or Edge only.** The tool relies on the browser File System Access API, which Firefox and Safari do not support.
 
 ---
@@ -156,14 +158,13 @@ Because these live with your data, they sync through Google Drive / OneDrive and
 
 ## License
 
-<!-- TODO: choose a license. MIT is a common, permissive choice for lab tools. -->
-Add a license of your choice (e.g. [MIT](https://choosealicense.com/licenses/mit/)) by placing a `LICENSE` file in the repo.
+Released under the [MIT License](LICENSE) — free to use, modify, and share.
 
 ---
 
 ## Acknowledgements
 
-Developed for confocal microscopy image management in the lab. The ND2 reader was reverse-engineered and validated against real Nikon A1 / Ti2 acquisitions.
+Developed for confocal microscopy image management in the lab, in collaboration with [Claude Code](https://claude.com/claude-code) (Anthropic). The ND2 reader was reverse-engineered and validated against real Nikon A1 / Ti2 acquisitions.
 
 <!-- Optional: add screenshots here to show the Library, Organize & Rename, and Visualizer tabs. -->
 <!-- ![Visualizer](docs/visualizer.png) -->
